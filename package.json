@@ -1,0 +1,21 @@
+{
+  "name": "finalproject_topic01_study_planner",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dominhnhat24/FinalProject_Topic01_Study_Planner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dominhnhat24/FinalProject_Topic01_Study_Planner/issues"
+  },
+  "homepage": "https://github.com/dominhnhat24/FinalProject_Topic01_Study_Planner#readme"
+}
