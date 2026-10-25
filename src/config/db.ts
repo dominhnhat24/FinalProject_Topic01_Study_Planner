@@ -3,8 +3,10 @@ import { env } from "./env";
 
 export async function connectDatabase(): Promise<void> {
   mongoose.set("strictQuery", true);
+
   await mongoose.connect(env.MONGODB_URI);
-  console.info("MongoDB connected");
+
+  console.log("MongoDB Atlas connected successfully");
 }
 
 export async function disconnectDatabase(): Promise<void> {

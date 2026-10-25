@@ -1,25 +1,26 @@
+
+import "dotenv/config";
 import app from "./app";
+import { connectDatabase } from "./config/db";
 import { env } from "./config/env";
-import { connectDatabase, disconnectDatabase } from "./config/db";
 
-async function start() {
-  await connectDatabase();
-  const server = app.listen(env.PORT, () => {
-    console.info(`Study Planner API listening on port ${env.PORT}`);
-  });
+async function startServer(): Promise<void> {
+  try {
+    await connectDatabase();
 
-  const shutdown = async () => {
-    server.close(async () => {
-      await disconnectDatabase();
-      process.exit(0);
+    const server = app.listen(env.PORT, "0.0.0.0", () => {
+      console.log(`Backend running on port ${env.PORT}`);
+      console.log(`Health check: http://localhost:${env.PORT}/api/health`);
     });
-  };
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+    server.on("error", (error) => {
+      console.error("Server error:", error);
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error("Failed to start backend:", error);
+    process.exit(1);
+  }
 }
 
-start().catch((error: unknown) => {
-  console.error("Failed to start server", error);
-  process.exit(1);
-});
+void startServer();
