@@ -1,14 +1,12 @@
 import "dotenv/config";
-import { z } from "zod";
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(4000),
-  MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must contain at least 32 characters"),
-  JWT_EXPIRES_IN: z.string().default("1d"),
-  CLIENT_ORIGIN: z.string().default("*"),
-  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
-});
+export const env = {
+  NODE_ENV: process.env.NODE_ENV ?? "development",
+  PORT: Number(process.env.PORT ?? 3000),
+  MONGODB_URI: process.env.MONGOOSE_CONNECTION_STRING ?? "",
+  CLIENT_ORIGIN: process.env.CLIENT_ORIGIN ?? "*",
+};
 
-export const env = envSchema.parse(process.env);
+if (!env.MONGODB_URI) {
+  throw new Error("Missing MONGOOSE_CONNECTION_STRING in .env");
+}
