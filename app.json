@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "FinalProject_Topic01_Study_Planner",
+    "slug": "FinalProject_Topic01_Study_Planner",
+    "version": "1.0.0",
+    "scheme": "studyplanner",
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

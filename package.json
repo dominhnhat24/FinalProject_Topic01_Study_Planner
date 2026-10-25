@@ -2,7 +2,7 @@
   "name": "finalproject_topic01_study_planner",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "expo-router/entry",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,9 +13,18 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/dominhnhat24/FinalProject_Topic01_Study_Planner/issues"
+  "dependencies": {
+    "expo": "~51.0.0",
+    "expo-router": "~3.5.0",
+    "expo-secure-store": "^58.0.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-web": "^0.21.4",
+    "zustand": "^5.0.16"
   },
-  "homepage": "https://github.com/dominhnhat24/FinalProject_Topic01_Study_Planner#readme"
+  "devDependencies": {
+    "@types/react": "~18.2.45",
+    "typescript": "~5.3.3"
+  }
 }
