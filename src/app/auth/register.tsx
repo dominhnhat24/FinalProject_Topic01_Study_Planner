@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuthStore } from '../Store/authStore';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState('');
@@ -31,7 +31,8 @@ export default function RegisterScreen() {
     if (res.success) {
       setMessage({ text: '🎉 ' + res.message + ' Đang chuyển hướng...', isError: false });
       setTimeout(() => {
-        router.push('/login');
+        // ĐÃ SỬA: Trỏ chuẩn xác vào /auth/login
+        router.replace('/auth/login');
       }, 1200);
     } else {
       setMessage({ text: res.message, isError: true });
@@ -83,7 +84,8 @@ export default function RegisterScreen() {
         <Text style={styles.buttonText}>ĐĂNG KÝ NGAY</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/login')} style={styles.linkContainer}>
+      {/* ĐÃ SỬA: Trỏ chuẩn xác vào /auth/login khi bấm vào chữ Đăng nhập */}
+      <TouchableOpacity onPress={() => router.replace('/auth/login')} style={styles.linkContainer}>
         <Text style={styles.linkText}>
           Đã có tài khoản? <Text style={styles.linkBold}>Đăng nhập</Text>
         </Text>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { useAuthStore } from '../Store/authStore';
+import { useAuthStore } from '../../stores/authStore'; // Lưu ý đường dẫn tương đối trỏ ra ngoài lấy stores
 import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
@@ -16,12 +16,6 @@ export default function LoginScreen() {
   useEffect(() => {
     loadSession();
   }, []);
-
-  useEffect(() => {
-    if (token) {
-      router.replace('/(tabs)');
-    }
-  }, [token]);
 
   const handleLogin = async () => {
     setErrorText('');
@@ -69,7 +63,8 @@ export default function LoginScreen() {
         <Text style={styles.buttonText}>ĐĂNG NHẬP</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push('/register')} style={styles.linkContainer}>
+      {/* Sửa đường dẫn sang /auth/register vì file nằm chung trong thư mục auth */}
+      <TouchableOpacity onPress={() => router.push('/auth/register')} style={styles.linkContainer}>
         <Text style={styles.linkText}>
           Chưa có tài khoản? <Text style={styles.linkBold}>Đăng ký ngay</Text>
         </Text>
