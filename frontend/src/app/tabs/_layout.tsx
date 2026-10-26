@@ -1,65 +1,36 @@
-
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-
-type TabIconProps = {
-  color: string;
-  size: number;
-};
-
-const COLORS = {
-  primary: "#4F46E5",
-  muted: "#8A8FA3",
-  white: "#FFFFFF",
-};
+import { useTheme } from "../../context/ThemeContext";
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.muted,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          height: 66,
+          height: 68,
           paddingTop: 8,
           paddingBottom: 8,
-          backgroundColor: COLORS.white,
-          borderTopColor: "#ECEEF4",
+          backgroundColor: colors.surface,
+          borderTopColor: colors.line,
           elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
+          fontSize: 10,
+          fontWeight: "700",
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Tổng quan",
-          tabBarIcon: ({ color, size }: TabIconProps) => (
-            <Ionicons name="grid-outline" color={color} size={size} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: "Lịch",
-          tabBarIcon: ({ color, size }: TabIconProps) => (
-            <Ionicons name="calendar-outline" color={color} size={size} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="assignments"
-        options={{
-          title: "Bài tập",
-          tabBarIcon: ({ color, size }: TabIconProps) => (
-            <Ionicons name="checkbox-outline" color={color} size={size} />
+          title: "Trang chủ",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" color={color} size={size} />
           ),
         }}
       />
@@ -68,8 +39,38 @@ export default function TabLayout() {
         name="courses"
         options={{
           title: "Học phần",
-          tabBarIcon: ({ color, size }: TabIconProps) => (
+          tabBarIcon: ({ color, size }) => (
             <Ionicons name="book-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="assignments"
+        options={{
+          title: "Bài tập",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="checkbox-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Lịch",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Cá nhân",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" color={color} size={size} />
           ),
         }}
       />

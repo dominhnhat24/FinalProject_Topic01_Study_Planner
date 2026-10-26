@@ -1,56 +1,41 @@
-# Welcome to your Expo app 👋
+# Study Planner Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo SDK 58 / React Native app cho Study Planner.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Chạy
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Copy `.env.example` thành `.env` và đặt `EXPO_PUBLIC_API_URL` tới backend. Khi chạy Expo Go trên thiết bị thật, có thể để `localhost` trong `.env`: ứng dụng sẽ tự thay `localhost` bằng IP LAN của máy đang chạy Expo. Nếu bạn muốn cố định URL, hãy đặt IP LAN của máy chạy backend.
 
-### Other setup steps
+## Auth
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Màn hình `/login` và `/register` gọi API thật (`/api/auth/login`, `/api/auth/register`) và lưu JWT bằng Expo SecureStore. Các route `/tabs/*` được bảo vệ bằng Expo Router protected routes.
 
-## Learn more
+## Data
 
-To learn more about developing your project with Expo, look at the following resources:
+Home, Calendar, Assignments và Courses không còn dùng số liệu mẫu. Tất cả dữ liệu đọc từ API; khi database không có bản ghi tương ứng, màn hình hiển thị trạng thái rỗng.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Study Planner implementation notes
 
-## Join the community
+Implemented against the supplied reference UI and functional requirements:
 
-Join our community of developers creating universal apps.
+- 5-tab navigation: Home, Courses, Assignments, Weekly Calendar, Profile.
+- Remote API CRUD for courses and assignments.
+- Course + status filtering on assignments.
+- Assignment detail route and create/edit modal.
+- Local deadline notifications with notification -> assignment detail navigation.
+- Local persistent cache with offline banner and queued mutations for later sync.
+- Optimistic completion updates with rollback on server errors; offline mutations are queued instead of being dropped.
+- Image attachment picker stores selected local image URIs with assignment data.
+- Light/dark theme persisted locally.
+- A 48-hour upcoming-deadline summary is shown inside the app. Native home-screen widgets require native widget extensions/development builds and are intentionally not claimed as implemented in Expo Go.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+For SDK 58, install the added packages with:
+
+`npx expo install expo-notifications expo-image-picker @react-native-async-storage/async-storage @react-native-community/netinfo`
+
+Use `npm install` (not `npm ci`) after pulling these changes so npm can refresh the lockfile if needed.

@@ -1,10 +1,19 @@
 import mongoose, { type FilterQuery } from "mongoose";
-import { Assignment, type AssignmentDocument } from "../models/Assignment";
-import { Course } from "../models/Course";
-import { ApiError } from "../utils/ApiError";
-import { completionRate } from "../utils/progress";
+import { Assignment, type AssignmentDocument } from "../models/assignment.model.js";
+import { Course } from "../models/course.model.js";
+import { ApiError } from "../utils/ApiError.js";
+import { completionRate } from "../utils/progress.js";
 
-interface AssignmentInput {
+export interface CreateAssignmentInput {
+  courseId: string;
+  title: string;
+  dueAt: Date;
+  status: "pending" | "completed";
+  notes?: string;
+  attachments: { uri: string; fileName?: string }[];
+}
+
+export interface UpdateAssignmentInput {
   courseId?: string;
   title?: string;
   dueAt?: Date;
@@ -12,7 +21,27 @@ interface AssignmentInput {
   notes?: string;
   attachments?: { uri: string; fileName?: string }[];
 }
-interface AssignmentFilters {
+
+function toAssignmentPublic(assignment: { _id: unknown; userId: unknown; courseId: unknown; title: string; dueAt: Date; status: "pending" | "completed"; notes?: string; attachments: { _id?: unknown; uri: string; fileName?: string }[]; createdAt?: Date; updatedAt?: Date }) {
+  return {
+    id: String(assignment._id),
+    userId: String(assignment.userId),
+    courseId: String(assignment.courseId),
+    title: assignment.title,
+    dueAt: assignment.dueAt,
+    status: assignment.status,
+    notes: assignment.notes ?? "",
+    attachments: assignment.attachments.map((attachment) => ({
+      ...(attachment._id ? { id: String(attachment._id) } : {}),
+      uri: attachment.uri,
+      ...(attachment.fileName ? { fileName: attachment.fileName } : {}),
+    })),
+    ...(assignment.createdAt ? { createdAt: assignment.createdAt } : {}),
+    ...(assignment.updatedAt ? { updatedAt: assignment.updatedAt } : {}),
+  };
+}
+
+export interface AssignmentFilters {
   courseId?: string;
   status?: "pending" | "completed";
   from?: string;
@@ -22,103 +51,159 @@ interface AssignmentFilters {
 }
 
 async function assertOwnedCourse(userId: string, courseId: string) {
-  if (!mongoose.isValidObjectId(courseId)) throw new ApiError(400, "courseId không hợp lệ");
+  if (!mongoose.isValidObjectId(courseId)) {
+    throw new ApiError(400, "courseId không hợp lệ");
+  }
+
   const course = await Course.findOne({ _id: courseId, userId }).select("_id").lean();
-  if (!course) throw new ApiError(404, "Không tìm thấy học phần");
+  if (!course) {
+    throw new ApiError(404, "Không tìm thấy học phần");
+  }
+
   return course;
 }
 
 async function getOwnedAssignment(userId: string, assignmentId: string) {
-  if (!mongoose.isValidObjectId(assignmentId)) throw new ApiError(400, "assignmentId không hợp lệ");
-  const assignment = await Assignment.findById(assignmentId).lean();
-  if (!assignment) throw new ApiError(404, "Không tìm thấy bài tập");
-  const course = await Course.findOne({ _id: assignment.courseId, userId }).select("_id").lean();
-  if (!course) throw new ApiError(404, "Không tìm thấy bài tập");
+  if (!mongoose.isValidObjectId(assignmentId)) {
+    throw new ApiError(400, "assignmentId không hợp lệ");
+  }
+
+  const assignment = await Assignment.findOne({ _id: assignmentId, userId }).lean();
+  if (!assignment) {
+    throw new ApiError(404, "Không tìm thấy bài tập");
+  }
+
   return assignment;
 }
 
-export async function listAssignments(userId: string, filters: AssignmentFilters) {
-  const courseFilter: Record<string, unknown> = {};
-  if (filters.courseId) {
-    const course = await assertOwnedCourse(userId, filters.courseId);
-    courseFilter.courseId = course._id;
-  } else {
-    const courses = await Course.find({ userId }).select("_id").lean();
-    courseFilter.courseId = { $in: courses.map((course) => course._id) };
-  }
+function buildAssignmentQuery(userId: string, filters: AssignmentFilters): FilterQuery<AssignmentDocument> {
+  const query: FilterQuery<AssignmentDocument> = { userId };
 
-  const query: FilterQuery<AssignmentDocument> = { ...courseFilter };
+  if (filters.courseId) query.courseId = filters.courseId;
   if (filters.status) query.status = filters.status;
+
   if (filters.from || filters.to) {
     query.dueAt = {};
     if (filters.from) query.dueAt.$gte = new Date(filters.from);
     if (filters.to) query.dueAt.$lte = new Date(filters.to);
   }
 
+  return query;
+}
+
+export async function listAssignments(userId: string, filters: AssignmentFilters) {
+  if (filters.courseId) {
+    await assertOwnedCourse(userId, filters.courseId);
+  }
+
+  const query = buildAssignmentQuery(userId, filters);
   const skip = (filters.page - 1) * filters.limit;
+
   const [items, total] = await Promise.all([
-    Assignment.find(query).sort({ dueAt: 1 }).skip(skip).limit(filters.limit).lean(),
+    Assignment.find(query)
+      .sort({ dueAt: 1, _id: 1 })
+      .skip(skip)
+      .limit(filters.limit)
+      .lean(),
     Assignment.countDocuments(query),
   ]);
 
-  return { items, pagination: { page: filters.page, limit: filters.limit, total, totalPages: Math.ceil(total / filters.limit) } };
+  return {
+    items: items.map(toAssignmentPublic),
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      total,
+      totalPages: Math.ceil(total / filters.limit),
+    },
+  };
 }
 
-export async function createAssignment(userId: string, input: {
-  courseId: string; title: string; dueAt: Date; status?: "pending" | "completed";
-  notes?: string; attachments?: { uri: string; fileName?: string }[];
-}) {
-  const course = await assertOwnedCourse(userId, input.courseId);
-  return Assignment.create({ ...input, courseId: course._id });
+export async function createAssignment(userId: string, input: CreateAssignmentInput) {
+  await assertOwnedCourse(userId, input.courseId);
+
+  const assignment = await Assignment.create({
+    ...input,
+    userId,
+  });
+
+  return toAssignmentPublic(assignment.toObject());
 }
 
 export async function getAssignment(userId: string, assignmentId: string) {
   const assignment = await getOwnedAssignment(userId, assignmentId);
-  return assignment;
+  return toAssignmentPublic(assignment);
 }
 
-export async function updateAssignment(userId: string, assignmentId: string, input: AssignmentInput) {
+export async function updateAssignment(
+  userId: string,
+  assignmentId: string,
+  input: UpdateAssignmentInput,
+) {
   await getOwnedAssignment(userId, assignmentId);
-  const update: Record<string, unknown> = { ...input };
+
   if (input.courseId) {
-    const course = await assertOwnedCourse(userId, input.courseId);
-    update.courseId = course._id;
+    await assertOwnedCourse(userId, input.courseId);
   }
-  const result = await Assignment.findByIdAndUpdate(
-    assignmentId, { $set: update }, { new: true, runValidators: true }
+
+  const update = {
+    ...input,
+    ...(input.title ? { title: input.title.trim() } : {}),
+    ...(input.notes !== undefined ? { notes: input.notes.trim() } : {}),
+  };
+
+  const assignment = await Assignment.findOneAndUpdate(
+    { _id: assignmentId, userId },
+    { $set: update },
+    { new: true, runValidators: true },
   ).lean();
-  if (!result) throw new ApiError(404, "Không tìm thấy bài tập");
-  return result;
+
+  if (!assignment) {
+    throw new ApiError(404, "Không tìm thấy bài tập");
+  }
+
+  return toAssignmentPublic(assignment);
 }
 
 export async function deleteAssignment(userId: string, assignmentId: string) {
   await getOwnedAssignment(userId, assignmentId);
-  await Assignment.findByIdAndDelete(assignmentId);
+
+  await Assignment.deleteOne({ _id: assignmentId, userId });
   return { id: assignmentId };
 }
 
 export async function getProgress(userId: string) {
-  const courses = await Course.find({ userId }).select("_id code name color").lean();
+  const courses = await Course.find({ userId }).select("_id code name color").sort({ name: 1 }).lean();
   if (courses.length === 0) return [];
 
-  const stats = await Assignment.aggregate([
-    { $match: { courseId: { $in: courses.map((course) => course._id) } } },
+  const stats = await Assignment.aggregate<{
+    _id: mongoose.Types.ObjectId;
+    total: number;
+    completed: number;
+  }>([
+    { $match: { userId: new mongoose.Types.ObjectId(userId) } },
     {
       $group: {
         _id: "$courseId",
         total: { $sum: 1 },
-        completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+        completed: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "completed"] }, 1, 0],
+          },
+        },
       },
     },
   ]);
 
   const statsByCourse = new Map(stats.map((item) => [String(item._id), item]));
+
   return courses.map((course) => {
     const stat = statsByCourse.get(String(course._id));
     const total = stat?.total ?? 0;
     const completed = stat?.completed ?? 0;
+
     return {
-      courseId: course._id,
+      courseId: String(course._id),
       code: course.code,
       name: course.name,
       color: course.color,

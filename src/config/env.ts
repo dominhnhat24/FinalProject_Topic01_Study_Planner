@@ -1,12 +1,20 @@
 import "dotenv/config";
+import { z } from "zod";
 
-export const env = {
-  NODE_ENV: process.env.NODE_ENV ?? "development",
-  PORT: Number(process.env.PORT ?? 3000),
-  MONGODB_URI: process.env.MONGOOSE_CONNECTION_STRING ?? "",
-  CLIENT_ORIGIN: process.env.CLIENT_ORIGIN ?? "*",
-};
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  MONGODB_URI: z.string().trim().min(1, "MONGODB_URI is required"),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must contain at least 32 characters"),
+  JWT_EXPIRES_IN: z.string().trim().min(1).default("7d"),
+  CLIENT_ORIGIN: z.string().trim().default("*"),
+});
 
-if (!env.MONGODB_URI) {
-  throw new Error("Missing MONGOOSE_CONNECTION_STRING in .env");
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  console.error("Invalid environment configuration:", parsed.error.flatten().fieldErrors);
+  throw new Error("Invalid environment configuration");
 }
+
+export const env = parsed.data;
