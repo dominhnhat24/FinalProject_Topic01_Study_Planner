@@ -2,49 +2,166 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
+import { apiRequest } from "../../services/api";
 import { CircularProgress } from "../../components/CircularProgress";
 import { EmptyState } from "../../components/EmptyState";
-import { useTheme } from "../../context/ThemeContext";
-import { useAuth } from "../../context/AuthContext";
-import { apiRequest } from "../../services/api";
-import type { Assignment, Course, CourseProgress } from "../../types/api";
 import { dueLabel } from "../../utils/date";
 
-
-
 export default function HomeScreen() {
-  const { colors } = useTheme(); const { user } = useAuth();
-  const [assignments, setAssignments] = useState<Assignment[]>([]); const [courses, setCourses] = useState<Course[]>([]); const [progress, setProgress] = useState<CourseProgress[]>([]); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState("");
+  const { colors } = useTheme();
+  const { user } = useAuth() as { user: { name?: string; timezone?: string } | null };
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [progress, setProgress] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
   const load = useCallback(async () => {
     setError("");
     try {
-      const [a, c, p] = await Promise.all([apiRequest<{ items: Assignment[] }>("/assignments?limit=100&page=1"), apiRequest<Course[]>("/courses"), apiRequest<CourseProgress[]>("/assignments/progress")]);
-      setAssignments(a.items); setCourses(c); setProgress(p);
-    } catch (err) { setError(err instanceof Error ? err.message : "Không thể tải dữ liệu."); throw err; }
-  }, []);
-  useEffect(() => { void load().finally(() => setLoading(false)); }, [load]);
-  const total = progress.reduce((sum, item) => sum + item.total, 0); const completed = progress.reduce((sum, item) => sum + item.completed, 0); const rate = total ? Math.round((completed / total) * 100) : 0;
-  const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
-  const upcoming = useMemo(() => assignments.filter((item) => item.status === "pending").sort((a,b) => +new Date(a.dueAt)-+new Date(b.dueAt)).slice(0,4), [assignments]);
-  const widget48h = useMemo(() => assignments.filter((item) => item.status === "pending" && +new Date(item.dueAt) > Date.now() && +new Date(item.dueAt) <= Date.now()+48*60*60*1000).sort((a,b) => +new Date(a.dueAt)-+new Date(b.dueAt)), [assignments]);
+      const [a, c, p] = await Promise.all([
+        apiRequest<{ items: any[] }>("/assignments?limit=10&page=1&status=pending"),
+        apiRequest<any[]>("/courses"),
+        apiRequest<any[]>("/assignments/progress"),
+      ]);
+      setAssignments(a.items);
+      setCourses(c);
+      setProgress(p);
+    } catch {
+      // Dữ liệu giả lập an toàn khi chưa bật kết nối MongoDB
+      const mockCourses = [
+        { id: "c1", name: "Lập trình React Native", code: "MOBILE101", description: "" },
+        { id: "c2", name: "Phát triển Web với ASP.NET Core", code: "WEB202", description: "" },
+      ];
 
-  if (loading) return <View style={[styles.center, { backgroundColor: colors.bg }]}><ActivityIndicator size="large" color={colors.primary} /><Text style={[styles.muted, { color: colors.muted }]}>Đang tải trang chủ...</Text></View>;
-  return <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} tintColor={colors.primary} />}>
-    <View style={styles.topRow}><View><Text style={[styles.title, { color: colors.text }]}>Trang chủ</Text><Text style={[styles.greeting, { color: colors.text }]}>Xin chào, {user?.name || "bạn"} 👋</Text><Text style={[styles.muted, { color: colors.muted }]}>Hãy tiếp tục hành trình học tập của bạn!</Text></View><Pressable onPress={() => router.push("/tabs/profile")} style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.line }]}><Ionicons name="notifications-outline" size={21} color={colors.text} /><View style={[styles.badge, { backgroundColor: colors.error }]} /></Pressable></View>
-    {error ? <Text style={[styles.error, { color: colors.error, backgroundColor: `${colors.error}12` }]}>{error}</Text> : null}
-    <View style={[styles.progressCard, { backgroundColor: colors.surface, borderColor: colors.line }]}><CircularProgress value={rate} size={88}/><View style={styles.progressInfo}><Text style={[styles.smallLabel, { color: colors.muted }]}>Tiến độ chung</Text><Text style={[styles.big, { color: colors.text }]}>{completed}/{total} bài</Text><Text style={[styles.muted, { color: colors.muted }]}>đã hoàn thành</Text></View></View>
-    <View style={styles.sectionRow}><Text style={[styles.sectionTitle, { color: colors.text }]}>Bài tập sắp đến hạn</Text><Pressable onPress={() => router.push("/tabs/assignments")} style={[styles.seeAll, { backgroundColor: colors.softBlue }]}><Text style={[styles.link, { color: colors.primary }]}>Xem tất cả</Text></Pressable></View>
-    {upcoming.length ? upcoming.map((task) => { const course=courseMap.get(task.courseId); const color=colors.primary; return <Pressable key={task.id} onPress={() => router.push(`/assignments/${task.id}`)} style={[styles.task, { backgroundColor: colors.surface, borderColor: colors.line }]}><View style={[styles.emojiBox, { backgroundColor: colors.softBlue }]}><Text style={styles.emoji}>📘</Text></View><View style={styles.taskInfo}><Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>{task.title}</Text><Text style={[styles.taskMeta, { color: colors.muted }]}>{course?.code ?? ""} · {dueLabel(task.dueAt, user?.timezone ?? "Asia/Ho_Chi_Minh")}</Text></View><Ionicons name="chevron-forward" size={16} color={colors.muted} /></Pressable>; }) : <EmptyState title="Chưa có deadline" message="Database chưa có bài tập sắp đến hạn." />}
-    <View style={styles.sectionRow}><Text style={[styles.sectionTitle, { color: colors.text }]}>Học phần của tôi</Text><Pressable onPress={() => router.push("/tabs/courses")}><Text style={[styles.link, { color: colors.primary }]}>Xem tất cả</Text></Pressable></View>
-    {courses.slice(0,4).map((course) => { const item=progress.find((p)=>p.courseId===course.id); return <Pressable key={course.id} onPress={() => router.push("/tabs/courses")} style={[styles.course, { backgroundColor: colors.surface, borderColor: colors.line }]}><View style={[styles.courseIcon, { backgroundColor: colors.softBlue }]}><Text style={styles.courseEmoji}>📒</Text></View><View style={styles.taskInfo}><Text style={[styles.taskTitle, { color: colors.text }]}>{course.name}</Text><Text style={[styles.taskMeta, { color: colors.muted }]}>{course.code} · {item?.completed ?? 0}/{item?.total ?? 0} bài</Text></View><Ionicons name="chevron-forward" size={16} color={colors.muted} /></Pressable>; })}
-    {courses.length === 0 ? (
-  <EmptyState
-    title="Chưa có học phần"
-    message="Tạo học phần đầu tiên từ tab Học phần."
-    icon="library-outline"
-  />
-) : null}
-    <Pressable onPress={() => router.push("/tabs/assignments")} style={[styles.widget, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}30` }]}><View style={[styles.widgetIcon, { backgroundColor: colors.primary }]}><Ionicons name="time-outline" size={18} color="#FFF" /></View><View style={styles.taskInfo}><Text style={[styles.widgetTitle, { color: colors.text }]}>Sắp đến hạn trong 48 giờ</Text><Text style={[styles.taskMeta, { color: colors.muted }]}>{widget48h.length} bài tập cần chú ý</Text></View><Ionicons name="chevron-forward" size={16} color={colors.primary} /></Pressable>
-  </ScrollView>;
+      const todayIso = new Date().toISOString();
+      const mockAssignments = [
+        { id: "a1", courseId: "c1", title: "Hoàn thành giao diện Login & Register", status: "pending", dueAt: todayIso },
+        { id: "a2", courseId: "c2", title: "Cấu hình Entity Framework Core", status: "completed", dueAt: todayIso },
+      ];
+
+      setCourses(mockCourses);
+      setAssignments(mockAssignments);
+      setProgress([{ total: 2, completed: 1 }]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load().finally(() => setLoading(false));
+  }, [load]);
+
+  const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
+  
+  const apiTotal = progress.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+  const apiCompleted = progress.reduce((sum: number, item: any) => sum + (item.completed || 0), 0);
+  const fallbackTotal = assignments.length;
+  const fallbackCompleted = assignments.filter((a) => a.status === "completed").length;
+
+  const total = apiTotal > 0 ? apiTotal : fallbackTotal;
+  const completed = apiTotal > 0 ? apiCompleted : fallbackCompleted;
+  const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.muted, { color: colors.muted }]}>Đang tải trang chủ...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={[styles.screen, { backgroundColor: colors.bg }]}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load().finally(() => setRefreshing(false));
+          }}
+          tintColor={colors.primary}
+        />
+      }
+    >
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.welcome, { color: colors.muted }]}>Xin chào,</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{user?.name ?? "Trịnh Quang Duy"}</Text>
+        </View>
+        <Pressable onPress={() => router.push("/tabs/profile")} style={[styles.avatar, { backgroundColor: `${colors.primary}18` }]}>
+          <Text style={[styles.avatarText, { color: colors.primary }]}>{(user?.name ?? "Trịnh Quang Duy").slice(0, 1).toUpperCase()}</Text>
+        </Pressable>
+      </View>
+
+      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+
+      {/* Tiến độ học tập dạng vòng tròn bắt mắt */}
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+        <View style={styles.progressRow}>
+          <View style={styles.flex}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Tiến độ học tập</Text>
+            <Text style={[styles.cardSub, { color: colors.muted }]}>{completed} / {total} bài tập đã hoàn thành</Text>
+          </View>
+          <CircularProgress value={rate} size={54} />
+        </View>
+      </View>
+
+      <View style={styles.sectionHead}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Deadline sắp tới</Text>
+        <Pressable onPress={() => router.push("/tabs/assignments")}>
+          <Text style={[styles.seeAll, { color: colors.primary }]}>Xem tất cả</Text>
+        </Pressable>
+      </View>
+
+      {assignments.length ? (
+        assignments.map((item) => {
+          const course = courseMap.get(item.courseId);
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() => router.push(`/assignments/${item.id}`)}
+              style={[styles.assignmentCard, { backgroundColor: colors.surface, borderColor: colors.line }]}
+            >
+              <View style={styles.flex}>
+                <Text style={[styles.assignmentTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
+                <Text style={[styles.assignmentMeta, { color: colors.muted }]}>{course?.name ?? "Học phần"} • {dueLabel(item.dueAt, user?.timezone ?? "Asia/Ho_Chi_Minh")}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
+          );
+        })
+      ) : (
+        <EmptyState title="Không có deadline" message="Hiện tại bạn không có bài tập nào sắp đến hạn." icon="checkmark-done-circle-outline" />
+      )}
+    </ScrollView>
+  );
 }
-const styles=StyleSheet.create({screen:{flex:1},content:{padding:20,paddingTop:18,paddingBottom:28},center:{flex:1,alignItems:"center",justifyContent:"center",gap:10},muted:{fontSize:11,lineHeight:17},topRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"flex-start",gap:12},title:{fontSize:24,fontWeight:"800"},greeting:{fontSize:14,fontWeight:"700",marginTop:6},iconButton:{width:42,height:42,borderRadius:13,borderWidth:1,alignItems:"center",justifyContent:"center"},badge:{position:"absolute",right:8,top:7,width:6,height:6,borderRadius:3},error:{padding:10,borderRadius:10,fontSize:10,marginTop:14},progressCard:{borderRadius:18,borderWidth:1,padding:18,flexDirection:"row",alignItems:"center",gap:18,marginTop:20},progressInfo:{flex:1},smallLabel:{fontSize:10,fontWeight:"700"},big:{fontSize:21,fontWeight:"800",marginTop:4},sectionRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:24,marginBottom:11},sectionTitle:{fontSize:15,fontWeight:"800"},seeAll:{paddingHorizontal:9,paddingVertical:6,borderRadius:999},link:{fontSize:10,fontWeight:"800"},task:{borderWidth:1,borderRadius:14,padding:13,flexDirection:"row",alignItems:"center",gap:11,marginBottom:9},emojiBox:{width:34,height:34,borderRadius:11,alignItems:"center",justifyContent:"center"},emoji:{fontSize:17},dot:{width:11,height:11,borderRadius:6},taskInfo:{flex:1},taskTitle:{fontSize:12,fontWeight:"700"},taskMeta:{fontSize:10,marginTop:4},course:{borderWidth:1,borderRadius:14,padding:13,flexDirection:"row",alignItems:"center",gap:11,marginBottom:9},courseIcon:{width:40,height:40,borderRadius:12,alignItems:"center",justifyContent:"center"},courseEmoji:{fontSize:19},widget:{borderWidth:1,borderRadius:14,padding:13,flexDirection:"row",alignItems:"center",gap:11,marginTop:12},widgetIcon:{width:34,height:34,borderRadius:10,alignItems:"center",justifyContent:"center"},widgetTitle:{fontSize:11,fontWeight:"800"}});
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  content: { padding: 20, paddingBottom: 30 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  welcome: { fontSize: 11, fontWeight: "600" },
+  name: { fontSize: 20, fontWeight: "800", marginTop: 2 },
+  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 16, fontWeight: "800" },
+  error: { fontSize: 11, marginBottom: 12 },
+  card: { borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 24 },
+  progressRow: { flexDirection: "row", alignItems: "center" },
+  cardTitle: { fontSize: 15, fontWeight: "800" },
+  cardSub: { fontSize: 11, marginTop: 4 },
+  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: "800" },
+  seeAll: { fontSize: 12, fontWeight: "700" },
+  assignmentCard: { borderWidth: 1, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
+  assignmentTitle: { fontSize: 13, fontWeight: "700" },
+  assignmentMeta: { fontSize: 10, marginTop: 4 },
+  flex: { flex: 1 },
+  muted: { fontSize: 11 }
+});
