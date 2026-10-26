@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completionRate } from "../src/utils/progress";
+import { completionRate } from "../src/utils/progress.js";
 
 describe("completionRate", () => {
   it("returns a percentage rounded to an integer", () => {

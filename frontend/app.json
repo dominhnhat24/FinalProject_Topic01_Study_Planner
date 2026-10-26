@@ -28,12 +28,26 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#0084FF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "deadlines",
+          "enableRemoteNotifications": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Study Planner cần quyền truy cập ảnh để đính kèm vào bài tập.",
+          "cameraPermission": "Study Planner cần quyền camera để chụp ảnh đính kèm vào bài tập."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

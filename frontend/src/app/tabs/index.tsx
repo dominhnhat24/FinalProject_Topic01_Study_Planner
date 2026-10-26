@@ -1,314 +1,50 @@
-
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { CircularProgress } from "../../components/CircularProgress";
+import { EmptyState } from "../../components/EmptyState";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+import { apiRequest } from "../../services/api";
+import type { Assignment, Course, CourseProgress } from "../../types/api";
+import { dueLabel } from "../../utils/date";
 
-const C = {
-  bg: "#F7F8FC",
-  card: "#FFFFFF",
-  text: "#20243A",
-  muted: "#858BA0",
-  primary: "#4F46E5",
-  purpleLight: "#EEEDFF",
-  orange: "#E89535",
-  orangeLight: "#FFF3E2",
-  green: "#27966B",
-  greenLight: "#E5F7EF",
-  line: "#ECEEF4",
-};
 
-const tasks = [
-  {
-    title: "Hoàn thành bài tập lập trình",
-    course: "Lập trình di động",
-    due: "Hôm nay · 23:59",
-    color: C.orange,
-    icon: "code-slash-outline" as const,
-  },
-  {
-    title: "Ôn tập chương 3",
-    course: "Phân tích thiết kế hệ thống",
-    due: "Ngày mai · 20:00",
-    color: C.primary,
-    icon: "document-text-outline" as const,
-  },
-  {
-    title: "Nộp báo cáo nhóm",
-    course: "Công nghệ phần mềm",
-    due: "27/10 · 17:00",
-    color: C.green,
-    icon: "people-outline" as const,
-  },
-];
-
-function SectionTitle({
-  title,
-  action,
-}: {
-  title: string;
-  action?: string;
-}) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {action ? <Text style={styles.action}>{action}</Text> : null}
-    </View>
-  );
-}
 
 export default function HomeScreen() {
-  return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>STUDY PLANNER</Text>
-          <Text style={styles.heading}>Xin chào, sinh viên 👋</Text>
-          <Text style={styles.subtitle}>Cùng hoàn thành mục tiêu hôm nay.</Text>
-        </View>
+  const { colors } = useTheme(); const { user } = useAuth();
+  const [assignments, setAssignments] = useState<Assignment[]>([]); const [courses, setCourses] = useState<Course[]>([]); const [progress, setProgress] = useState<CourseProgress[]>([]); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const [a, c, p] = await Promise.all([apiRequest<{ items: Assignment[] }>("/assignments?limit=100&page=1"), apiRequest<Course[]>("/courses"), apiRequest<CourseProgress[]>("/assignments/progress")]);
+      setAssignments(a.items); setCourses(c); setProgress(p);
+    } catch (err) { setError(err instanceof Error ? err.message : "Không thể tải dữ liệu."); throw err; }
+  }, []);
+  useEffect(() => { void load().finally(() => setLoading(false)); }, [load]);
+  const total = progress.reduce((sum, item) => sum + item.total, 0); const completed = progress.reduce((sum, item) => sum + item.completed, 0); const rate = total ? Math.round((completed / total) * 100) : 0;
+  const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
+  const upcoming = useMemo(() => assignments.filter((item) => item.status === "pending").sort((a,b) => +new Date(a.dueAt)-+new Date(b.dueAt)).slice(0,4), [assignments]);
+  const widget48h = useMemo(() => assignments.filter((item) => item.status === "pending" && +new Date(item.dueAt) > Date.now() && +new Date(item.dueAt) <= Date.now()+48*60*60*1000).sort((a,b) => +new Date(a.dueAt)-+new Date(b.dueAt)), [assignments]);
 
-        <View style={styles.avatar}>
-          <Ionicons name="person-outline" size={23} color={C.primary} />
-        </View>
-      </View>
-
-      <View style={styles.progressCard}>
-        <View style={styles.progressTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.progressLabel}>TIẾN ĐỘ HỌC TẬP</Text>
-            <Text style={styles.progressNumber}>68%</Text>
-            <Text style={styles.progressHint}>
-              Bạn đang đi đúng kế hoạch!
-            </Text>
-          </View>
-          <View style={styles.progressIcon}>
-            <Ionicons name="trophy-outline" size={30} color="#FFFFFF" />
-          </View>
-        </View>
-
-        <View style={styles.progressTrack}>
-          <View style={styles.progressFill} />
-        </View>
-        <Text style={styles.progressFoot}>17 / 25 bài tập đã hoàn thành</Text>
-      </View>
-
-      <View style={styles.stats}>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: C.orangeLight }]}>
-            <Ionicons name="time-outline" size={20} color={C.orange} />
-          </View>
-          <Text style={styles.statValue}>03</Text>
-          <Text style={styles.statLabel}>Sắp đến hạn</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: C.greenLight }]}>
-            <Ionicons name="checkmark-circle-outline" size={20} color={C.green} />
-          </View>
-          <Text style={styles.statValue}>17</Text>
-          <Text style={styles.statLabel}>Đã hoàn thành</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: C.purpleLight }]}>
-            <Ionicons name="book-outline" size={20} color={C.primary} />
-          </View>
-          <Text style={styles.statValue}>06</Text>
-          <Text style={styles.statLabel}>Học phần</Text>
-        </View>
-      </View>
-
-      <SectionTitle title="Deadline sắp tới" action="Xem tất cả →" />
-
-      {tasks.map((task, index) => (
-        <View key={task.title} style={styles.taskCard}>
-          <View style={[styles.taskAccent, { backgroundColor: task.color }]} />
-
-          <View style={[styles.taskIcon, { backgroundColor: `${task.color}15` }]}>
-            <Ionicons name={task.icon} size={22} color={task.color} />
-          </View>
-
-          <View style={styles.taskInfo}>
-            <Text style={styles.taskTitle}>{task.title}</Text>
-            <Text style={styles.taskCourse}>{task.course}</Text>
-            <View style={styles.dueRow}>
-              <Ionicons name="alarm-outline" size={14} color={task.color} />
-              <Text style={[styles.dueText, { color: task.color }]}>
-                {task.due}
-              </Text>
-            </View>
-          </View>
-        </View>
-      ))}
-
-      <SectionTitle title="Kế hoạch hôm nay" />
-
-      <View style={styles.planCard}>
-        <View style={styles.planIcon}>
-          <Ionicons name="calendar-clear-outline" size={22} color={C.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.taskTitle}>Tập trung hoàn thành 2 nhiệm vụ</Text>
-          <Text style={styles.taskCourse}>
-            Ưu tiên bài tập có deadline gần nhất.
-          </Text>
-        </View>
-      </View>
-
-      <Text style={styles.footer}>Study Planner · Học tập có kế hoạch</Text>
-    </ScrollView>
-  );
+  if (loading) return <View style={[styles.center, { backgroundColor: colors.bg }]}><ActivityIndicator size="large" color={colors.primary} /><Text style={[styles.muted, { color: colors.muted }]}>Đang tải trang chủ...</Text></View>;
+  return <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} tintColor={colors.primary} />}>
+    <View style={styles.topRow}><View><Text style={[styles.title, { color: colors.text }]}>Trang chủ</Text><Text style={[styles.greeting, { color: colors.text }]}>Xin chào, {user?.name || "bạn"} 👋</Text><Text style={[styles.muted, { color: colors.muted }]}>Hãy tiếp tục hành trình học tập của bạn!</Text></View><Pressable onPress={() => router.push("/tabs/profile")} style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.line }]}><Ionicons name="notifications-outline" size={21} color={colors.text} /><View style={[styles.badge, { backgroundColor: colors.error }]} /></Pressable></View>
+    {error ? <Text style={[styles.error, { color: colors.error, backgroundColor: `${colors.error}12` }]}>{error}</Text> : null}
+    <View style={[styles.progressCard, { backgroundColor: colors.surface, borderColor: colors.line }]}><CircularProgress value={rate} size={88}/><View style={styles.progressInfo}><Text style={[styles.smallLabel, { color: colors.muted }]}>Tiến độ chung</Text><Text style={[styles.big, { color: colors.text }]}>{completed}/{total} bài</Text><Text style={[styles.muted, { color: colors.muted }]}>đã hoàn thành</Text></View></View>
+    <View style={styles.sectionRow}><Text style={[styles.sectionTitle, { color: colors.text }]}>Bài tập sắp đến hạn</Text><Pressable onPress={() => router.push("/tabs/assignments")} style={[styles.seeAll, { backgroundColor: colors.softBlue }]}><Text style={[styles.link, { color: colors.primary }]}>Xem tất cả</Text></Pressable></View>
+    {upcoming.length ? upcoming.map((task) => { const course=courseMap.get(task.courseId); const color=colors.primary; return <Pressable key={task.id} onPress={() => router.push(`/assignments/${task.id}`)} style={[styles.task, { backgroundColor: colors.surface, borderColor: colors.line }]}><View style={[styles.emojiBox, { backgroundColor: colors.softBlue }]}><Text style={styles.emoji}>📘</Text></View><View style={styles.taskInfo}><Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>{task.title}</Text><Text style={[styles.taskMeta, { color: colors.muted }]}>{course?.code ?? ""} · {dueLabel(task.dueAt, user?.timezone ?? "Asia/Ho_Chi_Minh")}</Text></View><Ionicons name="chevron-forward" size={16} color={colors.muted} /></Pressable>; }) : <EmptyState title="Chưa có deadline" message="Database chưa có bài tập sắp đến hạn." />}
+    <View style={styles.sectionRow}><Text style={[styles.sectionTitle, { color: colors.text }]}>Học phần của tôi</Text><Pressable onPress={() => router.push("/tabs/courses")}><Text style={[styles.link, { color: colors.primary }]}>Xem tất cả</Text></Pressable></View>
+    {courses.slice(0,4).map((course) => { const item=progress.find((p)=>p.courseId===course.id); return <Pressable key={course.id} onPress={() => router.push("/tabs/courses")} style={[styles.course, { backgroundColor: colors.surface, borderColor: colors.line }]}><View style={[styles.courseIcon, { backgroundColor: colors.softBlue }]}><Text style={styles.courseEmoji}>📒</Text></View><View style={styles.taskInfo}><Text style={[styles.taskTitle, { color: colors.text }]}>{course.name}</Text><Text style={[styles.taskMeta, { color: colors.muted }]}>{course.code} · {item?.completed ?? 0}/{item?.total ?? 0} bài</Text></View><Ionicons name="chevron-forward" size={16} color={colors.muted} /></Pressable>; })}
+    {courses.length === 0 ? (
+  <EmptyState
+    title="Chưa có học phần"
+    message="Tạo học phần đầu tiên từ tab Học phần."
+    icon="library-outline"
+  />
+) : null}
+    <Pressable onPress={() => router.push("/tabs/assignments")} style={[styles.widget, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}30` }]}><View style={[styles.widgetIcon, { backgroundColor: colors.primary }]}><Ionicons name="time-outline" size={18} color="#FFF" /></View><View style={styles.taskInfo}><Text style={[styles.widgetTitle, { color: colors.text }]}>Sắp đến hạn trong 48 giờ</Text><Text style={[styles.taskMeta, { color: colors.muted }]}>{widget48h.length} bài tập cần chú ý</Text></View><Ionicons name="chevron-forward" size={16} color={colors.primary} /></Pressable>
+  </ScrollView>;
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, paddingTop: 18, paddingBottom: 28 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 22,
-  },
-  greeting: {
-    color: C.primary,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    marginBottom: 7,
-  },
-  heading: { fontSize: 22, fontWeight: "800", color: C.text },
-  subtitle: { fontSize: 12, color: C.muted, marginTop: 6 },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: C.purpleLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  progressCard: {
-    backgroundColor: C.primary,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-  },
-  progressTop: { flexDirection: "row", alignItems: "center" },
-  progressLabel: {
-    color: "#DCD9FF",
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  progressNumber: {
-    color: "#FFFFFF",
-    fontSize: 34,
-    fontWeight: "800",
-    marginTop: 5,
-  },
-  progressHint: { color: "#E4E2FF", fontSize: 12, marginTop: 3 },
-  progressIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF25",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  progressTrack: {
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#FFFFFF40",
-    overflow: "hidden",
-    marginTop: 20,
-  },
-  progressFill: {
-    width: "68%",
-    height: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 4,
-  },
-  progressFoot: { color: "#E4E2FF", fontSize: 11, marginTop: 9 },
-  stats: { flexDirection: "row", gap: 10, marginBottom: 27 },
-  statCard: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: C.line,
-  },
-  statIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  statValue: { color: C.text, fontSize: 23, fontWeight: "800" },
-  statLabel: { color: C.muted, fontSize: 10, marginTop: 4 },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 13,
-    marginTop: 2,
-  },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: C.text },
-  action: { color: C.primary, fontSize: 12, fontWeight: "700" },
-  taskCard: {
-    backgroundColor: C.card,
-    borderRadius: 15,
-    padding: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: C.line,
-    overflow: "hidden",
-  },
-  taskAccent: {
-    width: 3,
-    alignSelf: "stretch",
-    borderRadius: 2,
-  },
-  taskIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  taskInfo: { flex: 1, gap: 5 },
-  taskTitle: { color: C.text, fontSize: 12, fontWeight: "700" },
-  taskCourse: { color: C.muted, fontSize: 11 },
-  dueRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  dueText: { fontSize: 10, fontWeight: "700" },
-  planCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: C.card,
-    borderRadius: 15,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: C.line,
-  },
-  planIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: C.purpleLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  footer: {
-    textAlign: "center",
-    color: C.muted,
-    fontSize: 10,
-    marginTop: 26,
-  },
-});
+const styles=StyleSheet.create({screen:{flex:1},content:{padding:20,paddingTop:18,paddingBottom:28},center:{flex:1,alignItems:"center",justifyContent:"center",gap:10},muted:{fontSize:11,lineHeight:17},topRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"flex-start",gap:12},title:{fontSize:24,fontWeight:"800"},greeting:{fontSize:14,fontWeight:"700",marginTop:6},iconButton:{width:42,height:42,borderRadius:13,borderWidth:1,alignItems:"center",justifyContent:"center"},badge:{position:"absolute",right:8,top:7,width:6,height:6,borderRadius:3},error:{padding:10,borderRadius:10,fontSize:10,marginTop:14},progressCard:{borderRadius:18,borderWidth:1,padding:18,flexDirection:"row",alignItems:"center",gap:18,marginTop:20},progressInfo:{flex:1},smallLabel:{fontSize:10,fontWeight:"700"},big:{fontSize:21,fontWeight:"800",marginTop:4},sectionRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:24,marginBottom:11},sectionTitle:{fontSize:15,fontWeight:"800"},seeAll:{paddingHorizontal:9,paddingVertical:6,borderRadius:999},link:{fontSize:10,fontWeight:"800"},task:{borderWidth:1,borderRadius:14,padding:13,flexDirection:"row",alignItems:"center",gap:11,marginBottom:9},emojiBox:{width:34,height:34,borderRadius:11,alignItems:"center",justifyContent:"center"},emoji:{fontSize:17},dot:{width:11,height:11,borderRadius:6},taskInfo:{flex:1},taskTitle:{fontSize:12,fontWeight:"700"},taskMeta:{fontSize:10,marginTop:4},course:{borderWidth:1,borderRadius:14,padding:13,flexDirection:"row",alignItems:"center",gap:11,marginBottom:9},courseIcon:{width:40,height:40,borderRadius:12,alignItems:"center",justifyContent:"center"},courseEmoji:{fontSize:19},widget:{borderWidth:1,borderRadius:14,padding:13,flexDirection:"row",alignItems:"center",gap:11,marginTop:12},widgetIcon:{width:34,height:34,borderRadius:10,alignItems:"center",justifyContent:"center"},widgetTitle:{fontSize:11,fontWeight:"800"}});

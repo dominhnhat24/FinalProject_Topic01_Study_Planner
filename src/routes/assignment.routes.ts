@@ -1,20 +1,35 @@
 import { Router } from "express";
-import * as controller from "../controllers/assignment.controller";
-import { requireAuth } from "../middleware/auth";
-import { exposeCurrentUser } from "../middleware/currentUser";
-import { validate } from "../middleware/validate";
-import { asyncHandler } from "../utils/asyncHandler";
-import { assignmentQuerySchema, createAssignmentSchema, updateAssignmentSchema } from "../validators/assignment.validator";
-import { objectIdSchema } from "../validators/common.validator";
-import { z } from "zod";
+import * as controller from "../controllers/assignment.controller.js";
+import { requireAuth } from "../middleware/auth.js";
+import { validate, validateBody, validateParams, validateQuery } from "../middleware/validate.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { assignmentIdParamsSchema } from "../validators/common.validator.js";
+import {
+  assignmentQuerySchema,
+  createAssignmentSchema,
+  updateAssignmentSchema,
+} from "../validators/assignment.validator.js";
 
 const router = Router();
-const paramsSchema = z.object({ assignmentId: objectIdSchema });
-router.use(requireAuth, exposeCurrentUser);
+
+router.use(requireAuth);
 router.get("/progress", asyncHandler(controller.progress));
-router.get("/", validate({ query: assignmentQuerySchema }), asyncHandler(controller.list));
-router.post("/", validate({ body: createAssignmentSchema }), asyncHandler(controller.create));
-router.get("/:assignmentId", validate({ params: paramsSchema }), asyncHandler(controller.get));
-router.patch("/:assignmentId", validate({ params: paramsSchema, body: updateAssignmentSchema }), asyncHandler(controller.update));
-router.delete("/:assignmentId", validate({ params: paramsSchema }), asyncHandler(controller.remove));
+router.get("/", validateQuery(assignmentQuerySchema), asyncHandler(controller.list));
+router.post("/", validateBody(createAssignmentSchema), asyncHandler(controller.create));
+router.get(
+  "/:assignmentId",
+  validateParams(assignmentIdParamsSchema),
+  asyncHandler(controller.get),
+);
+router.patch(
+  "/:assignmentId",
+  validate({ params: assignmentIdParamsSchema, body: updateAssignmentSchema }),
+  asyncHandler(controller.update),
+);
+router.delete(
+  "/:assignmentId",
+  validateParams(assignmentIdParamsSchema),
+  asyncHandler(controller.remove),
+);
+
 export default router;

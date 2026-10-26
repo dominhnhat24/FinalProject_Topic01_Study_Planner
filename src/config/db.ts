@@ -1,14 +1,23 @@
 import mongoose from "mongoose";
-import { env } from "./env";
+import { env } from "./env.js";
 
 export async function connectDatabase(): Promise<void> {
   mongoose.set("strictQuery", true);
 
-  await mongoose.connect(env.MONGODB_URI);
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
 
-  console.log("MongoDB Atlas connected successfully");
+  await mongoose.connect(env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 10_000,
+    maxPoolSize: 10,
+  });
+
+  console.log(`MongoDB connected: ${mongoose.connection.name}`);
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  await mongoose.disconnect();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
 }

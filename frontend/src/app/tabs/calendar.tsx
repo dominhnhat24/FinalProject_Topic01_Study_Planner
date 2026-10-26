@@ -1,158 +1,37 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useTheme } from "../../context/ThemeContext";
+import { apiRequest } from "../../services/api";
+import { EmptyState } from "../../components/EmptyState";
+import type { Assignment, Course } from "../../types/api";
 
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-
-const days = [
-  { day: "T2", date: "26", active: false },
-  { day: "T3", date: "27", active: true },
-  { day: "T4", date: "28", active: false },
-  { day: "T5", date: "29", active: false },
-  { day: "T6", date: "30", active: false },
-  { day: "T7", date: "31", active: false },
-  { day: "CN", date: "01", active: false },
-];
-
-const events = [
-  {
-    time: "09:00",
-    title: "Ôn tập chương 3",
-    course: "Phân tích thiết kế hệ thống",
-    color: "#4F46E5",
-  },
-  {
-    time: "14:00",
-    title: "Làm bài tập React Native",
-    course: "Lập trình di động",
-    color: "#E89535",
-  },
-  {
-    time: "20:00",
-    title: "Hoàn thiện báo cáo nhóm",
-    course: "Công nghệ phần mềm",
-    color: "#27966B",
-  },
-];
+function startOfWeek(date: Date) { const result = new Date(date); const day = result.getDay(); result.setDate(result.getDate() + (day === 0 ? -6 : 1 - day)); result.setHours(0, 0, 0, 0); return result; }
+function sameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 
 export default function CalendarScreen() {
-  return (
-    <ScrollView style={s.screen} contentContainerStyle={s.content}>
-      <Text style={s.eyebrow}>STUDY PLANNER</Text>
-      <Text style={s.title}>Lịch học tập</Text>
-      <Text style={s.subtitle}>Theo dõi các deadline trong tuần.</Text>
-
-      <View style={s.weekHeader}>
-        <Text style={s.month}>Tháng 10, 2026</Text>
-        <Text style={s.weekLabel}>Tuần này</Text>
-      </View>
-
-      <View style={s.week}>
-        {days.map((item) => (
-          <View key={item.day} style={s.dayColumn}>
-            <Text style={s.dayName}>{item.day}</Text>
-            <View style={[s.dateCircle, item.active && s.activeCircle]}>
-              <Text style={[s.dateText, item.active && s.activeDate]}>
-                {item.date}
-              </Text>
-            </View>
-            <View
-              style={[
-                s.dot,
-                { backgroundColor: item.date === "27" ? "#4F46E5" : "transparent" },
-              ]}
-            />
-          </View>
-        ))}
-      </View>
-
-      <Text style={s.sectionTitle}>Lịch trình trong ngày</Text>
-      <Text style={s.subtitle}>Thứ Ba, ngày 27 tháng 10</Text>
-
-      {events.map((event) => (
-        <View key={event.title} style={s.eventRow}>
-          <Text style={s.time}>{event.time}</Text>
-          <View style={[s.eventCard, { borderLeftColor: event.color }]}>
-            <Text style={s.eventTitle}>{event.title}</Text>
-            <Text style={s.course}>{event.course}</Text>
-          </View>
-        </View>
-      ))}
-
-      <View style={s.note}>
-        <Text style={s.noteTitle}>Mẹo học tập</Text>
-        <Text style={s.course}>
-          Ưu tiên các bài tập có deadline gần nhất để tránh trễ hạn.
-        </Text>
-      </View>
-    </ScrollView>
-  );
+  const { colors } = useTheme();
+  const [selected, setSelected] = useState(new Date());
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState("");
+  const load = useCallback(async () => { setError(""); try { const [a, c] = await Promise.all([apiRequest<{ items: Assignment[] }>("/assignments?limit=100&page=1"), apiRequest<Course[]>("/courses")]); setAssignments(a.items); setCourses(c); } catch (err) { setError(err instanceof Error ? err.message : "Không thể tải lịch."); throw err; } }, []);
+  useEffect(() => { void load().finally(() => setLoading(false)); }, [load]);
+  const week = useMemo(() => { const monday = startOfWeek(selected); return Array.from({ length: 7 }, (_, index) => { const date = new Date(monday); date.setDate(monday.getDate() + index); return date; }); }, [selected]);
+  const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
+  const dayItems = useMemo(() => assignments.filter((item) => sameDay(new Date(item.dueAt), selected)).sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt)), [assignments, selected]);
+  if (loading) return <View style={[styles.center, { backgroundColor: colors.bg }]}><ActivityIndicator size="large" color={colors.primary} /><Text style={[styles.muted, { color: colors.muted }]}>Đang tải lịch...</Text></View>;
+  return <ScrollView style={[styles.screen, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} tintColor={colors.primary} />}>
+    <View style={styles.head}><View><Text style={[styles.title, { color: colors.text }]}>Lịch tuần</Text><Text style={[styles.muted, { color: colors.muted }]}>Xem deadline theo tuần.</Text></View><Pressable onPress={() => router.push("/tabs/assignments")}><Ionicons name="add-circle" size={34} color={colors.primary} /></Pressable></View>
+    {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+    <Text style={[styles.weekTitle, { color: colors.muted }]}>Tuần này</Text><Text style={[styles.range, { color: colors.text }]}>{week[0].getDate()} – {week[6].getDate()} {week[6].toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}</Text>
+    <View style={[styles.week, { backgroundColor: colors.surface, borderColor: colors.line }]}>{week.map((date) => { const active = sameDay(date, selected); const has = assignments.some((item) => sameDay(new Date(item.dueAt), date)); return <Pressable key={date.toISOString()} onPress={() => setSelected(date)} style={styles.day}><Text style={[styles.dayLabel, { color: colors.muted }]}>{date.toLocaleDateString("vi-VN", { weekday: "short" }).replace("Th ", "T")}</Text><View style={[styles.date, active && { backgroundColor: colors.primary }]}><Text style={[styles.dateText, { color: active ? "#FFF" : colors.text }]}>{date.getDate()}</Text></View><View style={[styles.indicator, { backgroundColor: has ? colors.primary : "transparent" }]} /></Pressable>; })}</View>
+    <Text style={[styles.section, { color: colors.text }]}>{selected.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit" })}</Text>
+    {dayItems.length ? dayItems.map((item) => { const course = courseMap.get(item.courseId); const color = colors.primary; return <Pressable key={item.id} onPress={() => router.push(`/assignments/${item.id}`)} style={[styles.event, { backgroundColor: colors.surface, borderColor: colors.line }]}><Text style={[styles.time, { color: colors.muted }]}>{new Date(item.dueAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</Text><View style={[styles.eventBody, { borderLeftColor: color }]}><Text style={[styles.eventTitle, { color: colors.text }]}>{item.title}</Text><Text style={[styles.eventMeta, { color: colors.muted }]}>{course?.name ?? ""}</Text><Text style={[styles.eventStatus, { color: item.status === "completed" ? colors.success : color }]}>{item.status === "completed" ? "Đã hoàn thành" : "Hạn nộp"}</Text></View></Pressable>; }) : <EmptyState title="Không có deadline" message="Ngày được chọn chưa có bài tập." icon="calendar-clear-outline" />}
+  </ScrollView>;
 }
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F7F8FC" },
-  content: { padding: 20, paddingBottom: 30 },
-  eyebrow: { color: "#4F46E5", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
-  title: { color: "#20243A", fontSize: 25, fontWeight: "800", marginTop: 8 },
-  subtitle: { color: "#858BA0", fontSize: 12, marginTop: 6 },
-  weekHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 27,
-    marginBottom: 18,
-  },
-  month: { fontSize: 15, color: "#20243A", fontWeight: "800" },
-  weekLabel: { color: "#4F46E5", fontSize: 12, fontWeight: "700" },
-  week: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 18,
-    paddingHorizontal: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#ECEEF4",
-  },
-  dayColumn: { alignItems: "center", gap: 9 },
-  dayName: { fontSize: 10, color: "#858BA0" },
-  dateCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  activeCircle: { backgroundColor: "#4F46E5" },
-  dateText: { fontSize: 12, color: "#20243A", fontWeight: "600" },
-  activeDate: { color: "#FFFFFF" },
-  dot: { width: 5, height: 5, borderRadius: 3 },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#20243A",
-    marginTop: 28,
-    marginBottom: 5,
-  },
-  eventRow: { flexDirection: "row", gap: 12, marginTop: 17 },
-  time: { width: 45, paddingTop: 12, fontSize: 11, color: "#858BA0" },
-  eventCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 15,
-    borderLeftWidth: 4,
-    borderTopWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderTopColor: "#ECEEF4",
-    borderRightColor: "#ECEEF4",
-    borderBottomColor: "#ECEEF4",
-  },
-  eventTitle: { color: "#20243A", fontSize: 13, fontWeight: "700" },
-  course: { color: "#858BA0", fontSize: 11, marginTop: 7, lineHeight: 17 },
-  note: {
-    backgroundColor: "#EEEDFF",
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 25,
-  },
-  noteTitle: { color: "#4F46E5", fontWeight: "800", marginBottom: 6 },
+const styles = StyleSheet.create({
+  screen: { flex: 1 }, content: { padding: 20, paddingBottom: 30 }, center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 }, muted: { fontSize: 11, marginTop: 4 }, head: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { fontSize: 25, fontWeight: "800" }, error: { fontSize: 10, marginTop: 12 }, weekTitle: { fontSize: 11, fontWeight: "700", marginTop: 22 }, range: { fontSize: 14, fontWeight: "800", marginTop: 5 }, week: { flexDirection: "row", justifyContent: "space-between", borderWidth: 1, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 7, marginTop: 14 }, day: { alignItems: "center", gap: 7 }, dayLabel: { fontSize: 9 }, date: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" }, dateText: { fontSize: 12, fontWeight: "700" }, indicator: { width: 5, height: 5, borderRadius: 3 }, section: { fontSize: 15, fontWeight: "800", marginTop: 24, marginBottom: 11 }, event: { borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: "row", gap: 12, marginBottom: 9 }, time: { width: 42, fontSize: 10, paddingTop: 10 }, eventBody: { flex: 1, borderLeftWidth: 4, paddingLeft: 11, paddingVertical: 3 }, eventTitle: { fontSize: 12, fontWeight: "700" }, eventMeta: { fontSize: 10, marginTop: 4 }, eventStatus: { fontSize: 9, fontWeight: "800", marginTop: 5 },
 });

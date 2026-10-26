@@ -1,10 +1,11 @@
 import bcrypt from "bcryptjs";
-import { env } from "../config/env";
+
+const SALT_ROUNDS = 12;
 
 export function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, env.BCRYPT_ROUNDS);
+  return bcrypt.hash(password, SALT_ROUNDS);
 }
 
-export function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+export function comparePassword(password: string, passwordHash: string): Promise<boolean> {
+  return bcrypt.compare(password, passwordHash);
 }

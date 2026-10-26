@@ -1,117 +1,32 @@
-
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { apiRequest, NetworkError, queueMutation } from "../../services/api";
+import { readCache, writeCache } from "../../services/offline";
+import { CourseFormModal } from "../../components/CourseFormModal";
+import { EmptyState } from "../../components/EmptyState";
+import type { Course, CourseProgress } from "../../types/api";
 
-const courses = [
-  { code: "MOB401", name: "Lập trình di động", done: 4, total: 6, color: "#4F46E5" },
-  { code: "SWE301", name: "Công nghệ phần mềm", done: 3, total: 5, color: "#27966B" },
-  { code: "DBI302", name: "Cơ sở dữ liệu", done: 5, total: 5, color: "#E89535" },
-  { code: "SAD301", name: "Phân tích thiết kế hệ thống", done: 2, total: 4, color: "#D45B87" },
-  { code: "WEB302", name: "Phát triển ứng dụng web", done: 3, total: 5, color: "#1597A5" },
-  { code: "ENG401", name: "Tiếng Anh chuyên ngành", done: 0, total: 3, color: "#7C65C1" },
-];
-
-export default function CoursesScreen() {
-  return (
-    <ScrollView style={s.screen} contentContainerStyle={s.content}>
-      <Text style={s.eyebrow}>CHƯƠNG TRÌNH HỌC</Text>
-      <Text style={s.title}>Học phần</Text>
-      <Text style={s.subtitle}>Theo dõi tiến độ của từng môn học.</Text>
-
-      <View style={s.overview}>
-        <View style={s.overviewItem}>
-          <Text style={s.overviewValue}>{courses.length}</Text>
-          <Text style={s.overviewLabel}>Học phần</Text>
-        </View>
-        <View style={s.divider} />
-        <View style={s.overviewItem}>
-          <Text style={s.overviewValue}>
-            {courses.reduce((sum, course) => sum + course.done, 0)}
-          </Text>
-          <Text style={s.overviewLabel}>Bài đã xong</Text>
-        </View>
-        <View style={s.divider} />
-        <View style={s.overviewItem}>
-          <Text style={s.overviewValue}>
-            {courses.reduce((sum, course) => sum + course.total - course.done, 0)}
-          </Text>
-          <Text style={s.overviewLabel}>Còn lại</Text>
-        </View>
-      </View>
-
-      <Text style={s.sectionTitle}>Danh sách môn học</Text>
-
-      {courses.map((course) => {
-        const percentage = Math.round((course.done / course.total) * 100);
-
-        return (
-          <View key={course.code} style={s.card}>
-            <View style={s.cardHeader}>
-              <View style={[s.courseIcon, { backgroundColor: `${course.color}18` }]}>
-                <Ionicons name="book-outline" size={23} color={course.color} />
-              </View>
-
-              <View style={s.info}>
-                <Text style={s.courseName}>{course.name}</Text>
-                <Text style={s.code}>{course.code}</Text>
-              </View>
-
-              <Text style={[s.percentage, { color: course.color }]}>
-                {percentage}%
-              </Text>
-            </View>
-
-            <View style={s.track}>
-              <View
-                style={[
-                  s.fill,
-                  { width: `${percentage}%`, backgroundColor: course.color },
-                ]}
-              />
-            </View>
-
-            <View style={s.cardFooter}>
-              <Text style={s.meta}>
-                {course.done}/{course.total} bài tập hoàn thành
-              </Text>
-              <Text style={s.meta}>
-                {course.total - course.done} còn lại
-              </Text>
-            </View>
-          </View>
-        );
-      })}
-
-      <Text style={s.note}>
-        Tiến độ đang được tính từ dữ liệu mẫu. Khi kết nối backend, số liệu sẽ
-        được tính từ các bài tập thuộc từng học phần.
-      </Text>
-    </ScrollView>
-  );
+type StatusFilter = "all" | "studying" | "completed";
+export default function CoursesScreen(){
+  const { colors }=useTheme(); const [courses,setCourses]=useState<Course[]>([]); const [progress,setProgress]=useState<CourseProgress[]>([]); const [search,setSearch]=useState(""); const [status,setStatus]=useState<StatusFilter>("all"); const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [error,setError]=useState(""); const [modal,setModal]=useState(false); const [editing,setEditing]=useState<Course|null>(null);
+  const load=useCallback(async()=>{ setError(""); try{const [c,p]=await Promise.all([apiRequest<Course[]>("/courses"),apiRequest<CourseProgress[]>("/assignments/progress")]);setCourses(c);setProgress(p); }catch(err){setError(err instanceof Error?err.message:"Không thể tải học phần.");throw err;}},[]);
+  useEffect(()=>{void load().finally(()=>setLoading(false));},[load]);
+  const pMap=useMemo(()=>new Map(progress.map((p)=>[p.courseId,p])),[progress]);
+  const filtered=useMemo(()=>courses.filter((course)=>{const p=pMap.get(course.id);const match=course.name.toLowerCase().includes(search.toLowerCase())||course.code.toLowerCase().includes(search.toLowerCase());const done=(p?.total??0)>0&&(p?.completionRate??0)>=100;return match&&(status==="all"||(status==="completed"?done:!done));}),[courses,pMap,search,status]);
+  const onSaved=async(course:Course)=>{setCourses((current)=>{const next=current.some((c)=>c.id===course.id)?current.map((c)=>c.id===course.id?course:c):[...current,course];void writeCache("/courses",next);return next;});};
+  const create=()=>{setEditing(null);setModal(true)};
+  if(loading)return <View style={[styles.center,{backgroundColor:colors.bg}]}><ActivityIndicator size="large" color={colors.primary}/><Text style={[styles.muted,{color:colors.muted}]}>Đang tải học phần...</Text></View>;
+  return <><ScrollView style={[styles.screen,{backgroundColor:colors.bg}]} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);void load().finally(()=>setRefreshing(false));}} tintColor={colors.primary}/>}>
+    <View style={styles.head}><View><Text style={[styles.title,{color:colors.text}]}>Học phần</Text><Text style={[styles.muted,{color:colors.muted}]}>Theo dõi tiến độ theo từng môn học.</Text></View><Pressable onPress={create} hitSlop={8}>
+  <Ionicons name="add-circle" size={34} color={colors.primary} />
+</Pressable></View>
+    <View style={[styles.search,{backgroundColor:colors.surface,borderColor:colors.line}]}><Ionicons name="search-outline" size={17} color={colors.muted}/><TextInput value={search} onChangeText={setSearch} placeholder="Tìm kiếm học phần..." placeholderTextColor={colors.muted} style={[styles.input,{color:colors.text}]}/></View>
+    <View style={styles.segment}>{([["all","Tất cả"],["studying","Đang học"],["completed","Đã hoàn thành"]] as const).map(([v,l])=><Pressable key={v} onPress={()=>setStatus(v)} style={[styles.segmentItem,{borderColor:colors.line,backgroundColor:colors.surface},status===v&&{backgroundColor:colors.primary,borderColor:colors.primary}]}><Text style={[styles.segmentText,{color:status===v?"#FFF":colors.muted}]}>{l}</Text></Pressable>)}</View>
+    {error?<Text style={[styles.error,{color:colors.error}]}>{error}</Text>:null}
+    {filtered.map((course)=>{const p=pMap.get(course.id);const percent=p?.completionRate??0;return <Pressable key={course.id} onPress={()=>{setEditing(course);setModal(true)}} style={[styles.card,{backgroundColor:colors.surface,borderColor:colors.line}]}><View style={[styles.icon,{backgroundColor:colors.softBlue}]}><Text style={styles.emoji}>📒</Text></View><View style={styles.info}><Text style={[styles.name,{color:colors.text}]}>{course.name}</Text><Text style={[styles.code,{color:colors.muted}]}>{course.code} · {p?.completed??0}/{p?.total??0} bài</Text><View style={[styles.track,{backgroundColor:colors.line}]}><View style={[styles.fill,{width:`${percent}%`,backgroundColor:course.color}]}/></View></View><Text style={[styles.percent,{color:course.color}]}>{Math.round(percent)}%</Text></Pressable>})}
+    {filtered.length===0?<EmptyState title="Không có học phần" message={courses.length?"Thử đổi bộ lọc hoặc từ khóa tìm kiếm.":"Hãy tạo học phần đầu tiên bằng nút +."} icon="library-outline"/>:null}
+  </ScrollView><CourseFormModal visible={modal} onClose={()=>setModal(false)} editing={editing} onSaved={(course)=>void onSaved(course)}/></>;
 }
-
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F7F8FC" },
-  content: { padding: 20, paddingBottom: 30 },
-  eyebrow: { color: "#4F46E5", fontSize: 11, fontWeight: "800", letterSpacing: 1.3 },
-  title: { color: "#20243A", fontSize: 25, fontWeight: "800", marginTop: 8 },
-  subtitle: { color: "#858BA0", fontSize: 12, marginTop: 6 },
-  overview: { flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 16, borderWidth: 1, borderColor: "#ECEEF4", paddingVertical: 18, marginTop: 23, marginBottom: 27 },
-  overviewItem: { flex: 1, alignItems: "center", gap: 6 },
-  overviewValue: { color: "#20243A", fontSize: 22, fontWeight: "800" },
-  overviewLabel: { color: "#858BA0", fontSize: 10 },
-  divider: { width: 1, backgroundColor: "#ECEEF4" },
-  sectionTitle: { color: "#20243A", fontSize: 17, fontWeight: "800", marginBottom: 14 },
-  card: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#ECEEF4" },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  courseIcon: { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  info: { flex: 1, gap: 5 },
-  courseName: { color: "#20243A", fontSize: 12, fontWeight: "700" },
-  code: { color: "#858BA0", fontSize: 10 },
-  percentage: { fontSize: 15, fontWeight: "800" },
-  track: { height: 6, backgroundColor: "#F0F1F6", borderRadius: 4, marginTop: 18, overflow: "hidden" },
-  fill: { height: "100%", borderRadius: 4 },
-  cardFooter: { flexDirection: "row", justifyContent: "space-between", marginTop: 10, gap: 8 },
-  meta: { color: "#858BA0", fontSize: 10 },
-  note: { color: "#858BA0", fontSize: 11, lineHeight: 18, marginTop: 12 },
-});
+const styles=StyleSheet.create({screen:{flex:1},content:{padding:20,paddingBottom:30},center:{flex:1,alignItems:"center",justifyContent:"center",gap:10},muted:{fontSize:11,marginTop:4},head:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},title:{fontSize:25,fontWeight:"800"},add:{width:42,height:42,borderRadius:14,alignItems:"center",justifyContent:"center"},search:{height:46,borderWidth:1,borderRadius:12,marginTop:18,paddingHorizontal:13,flexDirection:"row",alignItems:"center",gap:8},input:{flex:1,fontSize:11},segment:{flexDirection:"row",gap:7,marginTop:12,marginBottom:15},segmentItem:{flex:1,borderWidth:1,borderRadius:10,paddingVertical:10,alignItems:"center"},segmentText:{fontSize:9,fontWeight:"700"},error:{fontSize:10,marginBottom:12},card:{borderWidth:1,borderRadius:15,padding:14,flexDirection:"row",alignItems:"center",gap:11,marginBottom:10},icon:{width:43,height:43,borderRadius:13,alignItems:"center",justifyContent:"center"},info:{flex:1},name:{fontSize:12,fontWeight:"700"},code:{fontSize:10,marginTop:4},track:{height:5,borderRadius:3,overflow:"hidden",marginTop:10},emoji:{fontSize:20},fill:{height:"100%",borderRadius:3},percent:{fontSize:11,fontWeight:"800",marginLeft:4}});

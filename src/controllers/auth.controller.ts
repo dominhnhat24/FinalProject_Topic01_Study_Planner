@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import * as authService from "../services/auth.service";
+import * as authService from "../services/auth.service.js";
 
 export async function register(req: Request, res: Response) {
   const result = await authService.register(req.body);
@@ -12,11 +12,13 @@ export async function login(req: Request, res: Response) {
 }
 
 export async function me(req: Request, res: Response) {
-  const user = await authService.getCurrentUser(req.userId!);
+  const user = await authService.getCurrentUser(req.userId as string);
   res.json({ success: true, data: user });
 }
 
 export async function logout(_req: Request, res: Response) {
-  // JWT is stateless: client must remove token from SecureStore.
-  res.json({ success: true, message: "Đã đăng xuất ở phía ứng dụng. Hãy xóa token cục bộ." });
+  res.json({
+    success: true,
+    message: "Đăng xuất thành công. Hãy xóa access token ở thiết bị.",
+  });
 }
