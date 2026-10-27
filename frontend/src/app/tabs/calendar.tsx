@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { useTheme } from "../../context/ThemeContext";
 import { apiRequest } from "../../services/api";
 import { EmptyState } from "../../components/EmptyState";
+import { CalendarDatePickerModal } from "../../components/CalendarDatePickerModal";
 
 function startOfWeek(date: Date) { 
   const result = new Date(date); 
@@ -21,6 +22,7 @@ function sameDay(a: Date, b: Date) {
 export default function CalendarScreen() {
   const { colors } = useTheme();
   const [selected, setSelected] = useState(new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true); 
@@ -38,20 +40,10 @@ export default function CalendarScreen() {
       ]); 
       setAssignments(a.items); 
       setCourses(c); 
-    } catch { 
-      const mockCourses = [
-        { id: "c1", name: "Lập trình React Native", code: "MOBILE101", description: "" },
-        { id: "c2", name: "Phát triển Web với ASP.NET Core", code: "WEB202", description: "" },
-      ];
-
-      const todayIso = new Date().toISOString();
-      const mockAssignments = [
-        { id: "a1", courseId: "c1", title: "Hoàn thành giao diện Login & Register", status: "pending", dueAt: todayIso },
-        { id: "a2", courseId: "c2", title: "Cấu hình Entity Framework Core", status: "completed", dueAt: todayIso },
-      ];
-
-      setCourses(mockCourses);
-      setAssignments(mockAssignments);
+    } catch (loadError) {
+      setAssignments([]);
+      setCourses([]);
+      setError(loadError instanceof Error ? loadError.message : "Không thể tải dữ liệu lịch. Vui lòng thử lại.");
     } 
   }, []);
 
@@ -89,6 +81,7 @@ export default function CalendarScreen() {
   }
   
   return (
+    <>
     <ScrollView 
       style={[styles.screen, { backgroundColor: colors.bg }]} 
       contentContainerStyle={styles.content} 
@@ -112,10 +105,16 @@ export default function CalendarScreen() {
 
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
       
-      <Text style={[styles.weekTitle, { color: colors.muted }]}>Tuần này</Text>
-      <Text style={[styles.range, { color: colors.text }]}>
-        {week[0].getDate()} – {week[6].getDate()} {week[6].toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}
-      </Text>
+      <View style={styles.weekHeading}>
+        <Pressable accessibilityLabel="Tuần trước" onPress={() => setSelected((date) => { const next = new Date(date); next.setDate(next.getDate() - 7); return next; })} style={styles.weekArrow}><Ionicons name="chevron-back" size={18} color={colors.primary} /></Pressable>
+        <Text style={[styles.weekTitle, { color: colors.muted }]}>{sameDay(startOfWeek(selected), startOfWeek(new Date())) ? "Tuần hiện tại" : "Tuần đã chọn"}</Text>
+        <Pressable accessibilityLabel="Tuần sau" onPress={() => setSelected((date) => { const next = new Date(date); next.setDate(next.getDate() + 7); return next; })} style={styles.weekArrow}><Ionicons name="chevron-forward" size={18} color={colors.primary} /></Pressable>
+      </View>
+      <Pressable onPress={() => setDatePickerOpen(true)} style={[styles.rangePicker, { backgroundColor: colors.surface, borderColor: colors.line }]} accessibilityRole="button" accessibilityLabel="Chọn ngày, tháng và năm trong lịch">
+        <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+        <Text style={[styles.range, { color: colors.text }]}>{week[0].getDate()} – {week[6].getDate()} {week[6].toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}</Text>
+        <Ionicons name="chevron-down" size={17} color={colors.muted} />
+      </Pressable>
       
       <View style={[styles.week, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         {week.map((date) => { 
@@ -184,6 +183,14 @@ export default function CalendarScreen() {
         ); 
       }) : <EmptyState title="Không có deadline" message="Không tìm thấy bài tập phù hợp với bộ lọc trong ngày này." icon="calendar-clear-outline" />}
     </ScrollView>
+    <CalendarDatePickerModal
+      visible={datePickerOpen}
+      selectedDate={selected}
+      onSelect={setSelected}
+      onClose={() => setDatePickerOpen(false)}
+      title="Chọn ngày trên lịch"
+    />
+    </>
   );
 }
 
@@ -195,8 +202,9 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, 
   title: { fontSize: 25, fontWeight: "800" }, 
   error: { fontSize: 10, marginTop: 12 }, 
-  weekTitle: { fontSize: 11, fontWeight: "700", marginTop: 22 }, 
-  range: { fontSize: 14, fontWeight: "800", marginTop: 5 }, 
+  weekHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 22 }, weekArrow: { width: 32, height: 32, alignItems: "center", justifyContent: "center" }, weekTitle: { fontSize: 11, fontWeight: "700" }, 
+  range: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: "800" },
+  rangePicker: { minHeight: 48, marginTop: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 }, 
   week: { flexDirection: "row", justifyContent: "space-between", borderWidth: 1, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 7, marginTop: 14 }, 
   day: { alignItems: "center", gap: 7 }, 
   dayLabel: { fontSize: 9 }, 

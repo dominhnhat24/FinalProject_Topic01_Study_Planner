@@ -7,6 +7,8 @@ import { apiRequest, queueMutation, NetworkError } from "../services/api";
 import { scheduleAssignmentReminders } from "../services/notifications";
 import type { Assignment, Course } from "../types/api";
 import { router } from "expo-router";
+import { CalendarDatePickerModal } from "./CalendarDatePickerModal";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function AssignmentFormModal({ visible, onClose, courses, editing, onSaved }: {
   visible: boolean;
@@ -16,9 +18,13 @@ export function AssignmentFormModal({ visible, onClose, courses, editing, onSave
   onSaved: (assignment: Assignment) => void;
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [courseId, setCourseId] = useState("");
   const [title, setTitle] = useState("");
-  const [dueAt, setDueAt] = useState("");
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [dueTime, setDueTime] = useState("09:00:00");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerSeed] = useState(() => new Date());
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"pending" | "completed">("pending");
   const [attachments, setAttachments] = useState<Assignment["attachments"]>([]);
@@ -30,7 +36,12 @@ export function AssignmentFormModal({ visible, onClose, courses, editing, onSave
     if (!visible) return;
     setCourseId(editing?.courseId ?? courses[0]?.id ?? "");
     setTitle(editing?.title ?? "");
-    setDueAt(editing ? editing.dueAt.slice(0, 16) : "");
+    const editingDue = editing ? new Date(editing.dueAt) : null;
+    setDueDate(editingDue && !Number.isNaN(editingDue.getTime()) ? editingDue : null);
+    setDueTime(editingDue && !Number.isNaN(editingDue.getTime())
+      ? `${String(editingDue.getHours()).padStart(2, "0")}:${String(editingDue.getMinutes()).padStart(2, "0")}:${String(editingDue.getSeconds()).padStart(2, "0")}`
+      : "09:00:00");
+    setDatePickerOpen(false);
     setNotes(editing?.notes ?? "");
     setStatus(editing?.status ?? "pending");
     setAttachments(editing?.attachments ?? []);
@@ -43,13 +54,26 @@ export function AssignmentFormModal({ visible, onClose, courses, editing, onSave
   };
 
   const pickImages = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setError("Bạn cần cấp quyền thư viện ảnh để chọn ảnh đính kèm.");
-      return;
+    setError("");
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+        quality: 0.85,
+      });
+
+      if (!result.canceled) {
+        addAssets(result.assets);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `Không thể mở album ảnh: ${err.message}`
+          : "Không thể mở album ảnh. Vui lòng thử lại."
+      );
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsMultipleSelection: true, selectionLimit: 5, quality: 0.85 });
-    if (!result.canceled) addAssets(result.assets);
   };
 
   const takePhoto = async () => {
@@ -64,17 +88,37 @@ export function AssignmentFormModal({ visible, onClose, courses, editing, onSave
 
   const save = async () => {
     setError("");
-    if (!courseId || !title.trim() || !dueAt) {
-      setError("Vui lòng chọn học phần, nhập tiêu đề và hạn nộp.");
+    if (!courseId || !title.trim() || !dueDate) {
+      setError("Vui lòng chọn học phần, nhập tiêu đề và chọn ngày hạn nộp.");
       return;
     }
-    const parsedDue = new Date(dueAt);
+    const timeMatch = /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.exec(dueTime.trim());
+    if (!timeMatch) {
+      setError("Giờ hạn nộp không hợp lệ. Vui lòng nhập theo dạng HH:mm:ss, ví dụ 09:30:00.");
+      return;
+    }
+    const [hour, minute, second] = dueTime.split(":").map(Number);
+    const parsedDue = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), hour, minute, second, 0);
     if (Number.isNaN(parsedDue.getTime())) {
-      setError("Hạn nộp không hợp lệ. Hãy dùng dạng YYYY-MM-DDTHH:mm.");
+      setError("Ngày hoặc giờ hạn nộp không hợp lệ. Vui lòng chọn lại.");
       return;
     }
     const iso = parsedDue.toISOString();
-    const body = { courseId, title: title.trim(), dueAt: iso, status, notes: notes.trim(), attachments };
+    const cleanAttachments = attachments.map(({ uri, fileName }) => ({
+      uri,
+      ...(fileName?.trim()
+        ? { fileName: fileName.trim() }
+        : {}),
+    }));
+
+const body = {
+  courseId,
+  title: title.trim(),
+  dueAt: iso,
+  status,
+  notes: notes.trim(),
+  attachments: cleanAttachments,
+};
     setSaving(true);
     try {
       let saved: Assignment;
@@ -121,9 +165,9 @@ onClose();
 
   return (
     <>
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+      <Modal visible={visible && !datePickerOpen} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={[styles.overlay, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={[styles.sheet, { backgroundColor: colors.surface, maxHeight: "100%" }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <View>
@@ -258,8 +302,35 @@ onClose();
             <Text style={[styles.label, { color: colors.text }]}>Tiêu đề *</Text>
             <TextInput value={title} onChangeText={setTitle} placeholder="Nhập tiêu đề bài tập" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.text, borderColor: colors.line, backgroundColor: colors.bg }]} />
 
-            <Text style={[styles.label, { color: colors.text }]}>Hạn nộp * (YYYY-MM-DDTHH:mm)</Text>
-            <TextInput value={dueAt} onChangeText={setDueAt} placeholder="2026-10-28T09:00" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.text, borderColor: colors.line, backgroundColor: colors.bg }]} />
+            <Text style={[styles.label, { color: colors.text }]}>Ngày hạn nộp *</Text>
+            <Pressable
+              onPress={() => setDatePickerOpen(true)}
+              style={[styles.dateTimeField, { borderColor: datePickerOpen ? colors.primary : colors.line, backgroundColor: colors.bg }]}
+              accessibilityRole="button"
+              accessibilityLabel="Chọn ngày hạn nộp"
+            >
+              <Ionicons name="calendar-outline" size={19} color={colors.primary} />
+              <Text style={[styles.dateTimeText, { color: dueDate ? colors.text : colors.muted }]}>
+                {dueDate ? dueDate.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "Chọn ngày / tháng / năm"}
+              </Text>
+              <Ionicons name="chevron-down" size={17} color={colors.muted} />
+            </Pressable>
+
+            <Text style={[styles.label, { color: colors.text }]}>Giờ hạn nộp *</Text>
+            <View style={[styles.dateTimeField, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+              <Ionicons name="time-outline" size={19} color={colors.primary} />
+              <TextInput
+                value={dueTime}
+                onChangeText={(value) => setDueTime(value.replace(/[^0-9:]/g, "").slice(0, 8))}
+                placeholder="09:30:00"
+                placeholderTextColor={colors.muted}
+                keyboardType="numbers-and-punctuation"
+                maxLength={8}
+                accessibilityLabel="Giờ hạn nộp theo định dạng giờ phút giây"
+                style={[styles.dateTimeInput, { color: colors.text }]}
+              />
+            </View>
+            <Text style={[styles.helper, { color: colors.muted }]}>Nhập giờ theo định dạng 24 giờ HH:mm:ss, ví dụ 14:05:00.</Text>
 
             <Text style={[styles.label, { color: colors.text }]}>Trạng thái</Text>
             <View style={styles.rowGap}>
@@ -307,6 +378,13 @@ onClose();
         </View>
       </View>
     </Modal>
+      <CalendarDatePickerModal
+        visible={visible && datePickerOpen}
+        selectedDate={dueDate ?? datePickerSeed}
+        onSelect={(date) => setDueDate(date)}
+        onClose={() => setDatePickerOpen(false)}
+        title="Chọn ngày hạn nộp"
+      />
     </>
   );
 }
@@ -367,6 +445,9 @@ createCourseText: {
   choice: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, maxWidth: 200 },
   choiceText: { fontSize: 11, fontWeight: "700" },
   input: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, fontSize: 12 },
+  dateTimeField: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", gap: 10 },
+  dateTimeText: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "600" },
+  dateTimeInput: { flex: 1, minWidth: 0, paddingVertical: 10, fontSize: 14, fontWeight: "600" },
   notes: { minHeight: 96, paddingTop: 12 },
   statusChoice: { minHeight: 44, paddingHorizontal: 12, borderWidth: 1, borderRadius: 10, flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 },
   attachmentHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 },

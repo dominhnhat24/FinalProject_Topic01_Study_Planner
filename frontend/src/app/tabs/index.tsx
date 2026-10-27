@@ -30,22 +30,11 @@ export default function HomeScreen() {
       setAssignments(a.items);
       setCourses(c);
       setProgress(p);
-    } catch {
-      // Dữ liệu giả lập an toàn khi chưa bật kết nối MongoDB
-      const mockCourses = [
-        { id: "c1", name: "Lập trình React Native", code: "MOBILE101", description: "" },
-        { id: "c2", name: "Phát triển Web với ASP.NET Core", code: "WEB202", description: "" },
-      ];
-
-      const todayIso = new Date().toISOString();
-      const mockAssignments = [
-        { id: "a1", courseId: "c1", title: "Hoàn thành giao diện Login & Register", status: "pending", dueAt: todayIso },
-        { id: "a2", courseId: "c2", title: "Cấu hình Entity Framework Core", status: "completed", dueAt: todayIso },
-      ];
-
-      setCourses(mockCourses);
-      setAssignments(mockAssignments);
-      setProgress([{ total: 2, completed: 1 }]);
+    } catch (loadError) {
+      setAssignments([]);
+      setCourses([]);
+      setProgress([]);
+      setError(loadError instanceof Error ? loadError.message : "Không thể tải dữ liệu. Vui lòng thử lại.");
     }
   }, []);
 
@@ -91,10 +80,10 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={[styles.welcome, { color: colors.muted }]}>Xin chào,</Text>
-          <Text style={[styles.name, { color: colors.text }]}>{user?.name ?? "Trịnh Quang Duy"}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{user?.name ?? "Bạn"}</Text>
         </View>
         <Pressable onPress={() => router.push("/tabs/profile")} style={[styles.avatar, { backgroundColor: `${colors.primary}18` }]}>
-          <Text style={[styles.avatarText, { color: colors.primary }]}>{(user?.name ?? "Trịnh Quang Duy").slice(0, 1).toUpperCase()}</Text>
+          <Text style={[styles.avatarText, { color: colors.primary }]}>{(user?.name ?? "B").slice(0, 1).toUpperCase()}</Text>
         </Pressable>
       </View>
 

@@ -2,9 +2,15 @@ import { z } from "zod";
 import { objectIdSchema } from "./common.validator.js";
 
 const attachmentSchema = z.object({
+  // ID được API trả về khi đọc bài tập.
+  // Chấp nhận ID đầu vào nhưng không dùng ID do client quyết định.
+  id: objectIdSchema.optional(),
+
   uri: z.string().trim().min(1, "URI đính kèm là bắt buộc").max(2048),
   fileName: z.string().trim().max(255).optional(),
-}).strict();
+})
+  .strict()
+  .transform(({ id: _id, ...attachment }) => attachment);
 
 const dueAtSchema = z
   .string()

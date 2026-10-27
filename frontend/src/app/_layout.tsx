@@ -1,37 +1,45 @@
 import { useEffect } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../context/AuthContext";
-import { ThemeProvider } from "../context/ThemeContext";
+import { ThemeProvider, useTheme } from "../context/ThemeContext";
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
+  const { mode, colors } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (loading) return;
 
-    // Kiểm tra xem người dùng có đang ở trong nhóm trang "tabs" hay không
-    const inAuthGroup = segments[0] === "tabs";
+    const inProtectedGroup = segments[0] === "tabs" || segments[0] === "assignments";
+    const inAuthScreen = segments[0] === "login" || segments[0] === "register";
 
-    if (!user && inAuthGroup) {
-      // Nếu CHƯA đăng nhập mà cố vào tabs -> Đẩy ngược về trang Login
+    if (!user && inProtectedGroup) {
       router.replace("/login");
-    } else if (user && !inAuthGroup) {
-      // Nếu ĐÃ đăng nhập mà đang ở trang login/register -> Đẩy thẳng vào tabs (Trang chủ)
+    } else if (user && inAuthScreen) {
       router.replace("/tabs");
     }
-  }, [user, loading, segments]);
+  }, [user, loading, segments, router]);
 
-  return <Slot />;
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
+      <StatusBar style={mode === "dark" ? "light" : "dark"} backgroundColor={colors.bg} />
+      <Slot key={user?.id ?? "unauthenticated"} />
+    </SafeAreaView>
+  );
 }
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
