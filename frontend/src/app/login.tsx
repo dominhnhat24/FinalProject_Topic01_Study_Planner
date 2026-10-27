@@ -19,7 +19,7 @@ export default function LoginScreen() {
     setError("");
     if (!email.trim() || !password) return setError("Vui lòng nhập email và mật khẩu.");
     setSubmitting(true);
-    try { await login({ email: email.trim(), password }); router.replace("/tabs"); }
+    try { await login({ email: email.trim(), password, remember }); router.replace("/tabs"); }
     catch (err) { setError(err instanceof Error ? err.message : "Đăng nhập thất bại."); }
     finally { setSubmitting(false); }
   };

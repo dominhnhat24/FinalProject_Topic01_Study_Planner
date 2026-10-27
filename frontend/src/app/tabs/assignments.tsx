@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { AssignmentFormModal } from "../../components/AssignmentFormModal";
 import { EmptyState } from "../../components/EmptyState";
 import { useTheme } from "../../context/ThemeContext";
-import { apiRequest, NetworkError, queueMutation } from "../../services/api";
+import { apiRequest, NetworkError, queueMutation, scopedCacheKey } from "../../services/api";
 import { writeCache } from "../../services/offline";
 import { scheduleAssignmentReminders } from "../../services/notifications";
 import type { Assignment, Course } from "../../types/api";
@@ -72,10 +72,10 @@ export default function AssignmentsScreen() {
       const updated = current.some((item) => item.id === next.id)
         ? current.map((item) => (item.id === next.id ? next : item))
         : [...current, next];
-      void writeCache("/assignments?limit=100&page=1", {
+      void scopedCacheKey("/assignments?limit=100&page=1").then((key) => writeCache(key, {
         items: updated,
         pagination: { page: 1, limit: 100, total: updated.length, totalPages: 1 },
-      });
+      }));
       return updated;
     });
   };

@@ -1,9 +1,11 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -12,9 +14,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          height: 68,
+          height: 60 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 8,
+          paddingBottom: Math.max(insets.bottom, 8),
           backgroundColor: colors.surface,
           borderTopColor: colors.line,
           elevation: 0,
@@ -30,7 +32,11 @@ export default function TabLayout() {
         options={{
           title: "Trang chủ",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" color={color} size={size} />
+            <Ionicons
+              name="home"
+              color={String(color ?? colors.muted)}
+              size={size}
+            />
           ),
         }}
       />
@@ -40,7 +46,11 @@ export default function TabLayout() {
         options={{
           title: "Học phần",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" color={color} size={size} />
+            <Ionicons
+              name="book-outline"
+              color={String(color ?? colors.muted)}
+              size={size}
+            />
           ),
         }}
       />
@@ -50,7 +60,11 @@ export default function TabLayout() {
         options={{
           title: "Bài tập",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkbox-outline" color={color} size={size} />
+            <Ionicons
+              name="checkbox-outline"
+              color={String(color ?? colors.muted)}
+              size={size}
+            />
           ),
         }}
       />
@@ -60,7 +74,11 @@ export default function TabLayout() {
         options={{
           title: "Lịch",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" color={color} size={size} />
+            <Ionicons
+              name="calendar-outline"
+              color={String(color ?? colors.muted)}
+              size={size}
+            />
           ),
         }}
       />
@@ -70,7 +88,11 @@ export default function TabLayout() {
         options={{
           title: "Cá nhân",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" color={color} size={size} />
+            <Ionicons
+              name="person-outline"
+              color={String(color ?? colors.muted)}
+              size={size}
+            />
           ),
         }}
       />

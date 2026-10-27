@@ -46,7 +46,7 @@ export default function RegisterScreen() {
         <Text style={[styles.title, { color: colors.text }]}>Tạo tài khoản</Text>
         <Text style={[styles.subtitle, { color: colors.muted }]}>Tạo tài khoản để lưu học phần, bài tập và deadline.</Text>
 
-        {[{label:"Họ và tên", value:name, set:setName, placeholder:"Trịnh Quang Duy"}, {label:"Email", value:email, set:setEmail, placeholder:"1923051143@student.hcmute.edu.vn"}, {label:"Mật khẩu", value:password, set:setPassword, placeholder:"Tối thiểu 8 ký tự", secure:true}, {label:"Xác nhận mật khẩu", value:confirm, set:setConfirm, placeholder:"Nhập lại mật khẩu", secure:true}].map((item) => (
+        {[{label:"Họ và tên", value:name, set:setName, placeholder:"Họ và tên của bạn"}, {label:"Email", value:email, set:setEmail, placeholder:"email@example.com"}, {label:"Mật khẩu", value:password, set:setPassword, placeholder:"Tối thiểu 8 ký tự", secure:true}, {label:"Xác nhận mật khẩu", value:confirm, set:setConfirm, placeholder:"Nhập lại mật khẩu", secure:true}].map((item) => (
           <View key={item.label}>
             <Text style={[styles.label, { color: colors.text }]}>{item.label}</Text>
             <TextInput 
