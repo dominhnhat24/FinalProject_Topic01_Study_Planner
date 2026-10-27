@@ -1,3 +1,4 @@
+// frontend/src/app/tabs/profile.tsx
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
@@ -13,7 +14,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useOfflineQueueCount } from "../../components/useOfflineQueueCount";
 
 export default function ProfileScreen() {
-  const { colors, mode, toggle } = useTheme();
+  const { colors, isDark, toggle } = useTheme();
   const { user, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const pending = useOfflineQueueCount();
@@ -138,14 +139,19 @@ export default function ProfileScreen() {
   };
 
   const doLogout = async () => {
+    if (loggingOut) return;
     setLoggingOut(true);
     let serverSessionClosed = false;
     try {
       serverSessionClosed = await logout();
+    } catch (err) {
+      console.warn("Lỗi khi gọi API đăng xuất:", err);
     } finally {
-      router.replace("/login");
       setLoggingOut(false);
+      // Chuyển hướng dứt khoát về trang đăng nhập /login
+      router.replace("/login");
     }
+
     if (!serverSessionClosed) {
       Alert.alert(
         "Đã đăng xuất trên thiết bị",
@@ -185,8 +191,8 @@ export default function ProfileScreen() {
       )}
 
       {pending > 0 ? (
-        <View style={[styles.sync, { backgroundColor: `${colors.warning}15`, borderColor: `${colors.warning}50` }]}>
-          <Ionicons name="cloud-upload-outline" size={18} color={colors.warning} />
+        <View style={[styles.sync, { backgroundColor: `${colors.secondary}15`, borderColor: `${colors.secondary}50` }]}>
+          <Ionicons name="cloud-upload-outline" size={18} color={colors.secondary} />
           <View style={styles.flex}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Có {pending} thay đổi chờ đồng bộ</Text>
             <Text style={[styles.rowSub, { color: colors.muted }]}>Ứng dụng sẽ gửi lại khi có mạng.</Text>
@@ -232,17 +238,17 @@ export default function ProfileScreen() {
             <Ionicons name="paper-plane-outline" size={15} color={colors.primary} />
             <Text style={[styles.testNotificationText, { color: colors.primary }]}>{testNotificationBusy ? "Đang kiểm tra…" : "Gửi thông báo thử (sau 5 giây)"}</Text>
           </Pressable>
-          {notificationMessage ? <Text style={[styles.notificationMessage, { color: notificationMessage.startsWith("Không") || notificationMessage.startsWith("Chưa") ? colors.warning : colors.muted }]}>{notificationMessage}</Text> : null}
+          {notificationMessage ? <Text style={[styles.notificationMessage, { color: notificationMessage.startsWith("Không") || notificationMessage.startsWith("Chưa") ? colors.error : colors.muted }]}>{notificationMessage}</Text> : null}
         </View>
 
         <View style={styles.row}>
           <Ionicons name="color-palette-outline" size={20} color={colors.primary}/>
           <View style={styles.flex}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Giao diện</Text>
-            <Text style={[styles.rowSub, { color: colors.muted }]}>{mode === "dark" ? "Chế độ tối" : "Chế độ sáng"}</Text>
+            <Text style={[styles.rowSub, { color: colors.muted }]}>{isDark ? "Chế độ tối" : "Chế độ sáng"}</Text>
           </View>
           <Switch 
-            value={mode === "dark"} 
+            value={isDark} 
             onValueChange={() => void toggle()} 
             trackColor={{ false: colors.line, true: colors.primary }} 
             thumbColor="#FFFFFF" 
@@ -251,7 +257,7 @@ export default function ProfileScreen() {
       </View>
 
       <Pressable 
-        onPress={() => router.push("/tabs/assignments")} 
+        onPress={() => router.push("/tabs/assignments?filter=48h")} 
         style={[styles.widget, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}28` }]}
       >
         <Ionicons name="grid-outline" size={20} color={colors.primary}/>
@@ -285,8 +291,6 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 22, fontWeight: "800" }, 
   name: { fontSize: 15, fontWeight: "800" }, 
   email: { fontSize: 11, marginTop: 2 }, 
-  idBadge: { alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  idBadgeText: { fontSize: 10, fontWeight: "700" },
   detailsBox: { padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 16, gap: 6 },
   detailText: { fontSize: 12, fontWeight: "600" },
   sync: { borderWidth: 1, borderRadius: 14, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }, 

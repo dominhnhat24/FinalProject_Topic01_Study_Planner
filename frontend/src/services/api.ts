@@ -1,3 +1,4 @@
+// frontend/src/services/api.ts
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { session } from "./session";
@@ -39,8 +40,6 @@ type ApiOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   auth?: boolean;
-  // Internal override used by logout so a concurrent account switch cannot change
-  // which token the revocation request sends.
   tokenOverride?: string | null;
   cacheKey?: string;
   skipCache?: boolean;
@@ -68,8 +67,6 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
     });
 
-    // Discard any response that belongs to a session which has since changed.
-    // Prevents late responses from the previous account from reaching screen state.
     if (options.auth !== false && (await session.getToken()) !== token) {
       throw new ApiRequestError("Phiên đăng nhập đã thay đổi. Vui lòng tải lại dữ liệu.", 409);
     }
@@ -81,10 +78,12 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
 
     if (!response.ok) {
       if (response.status === 401 && options.auth !== false && token) {
-        // Do not let a delayed 401 from an old request log out a newer account/session.
-        // The request may have been sent before the user switched accounts.
         const cleared = await session.clearTokenIfCurrent(token);
-        if (cleared) unauthorizedHandler?.();
+        if (cleared) {
+          unauthorizedHandler?.();
+          // Trả về promise từ chối một cách im lặng, không throw lỗi đỏ giao diện khi đăng xuất
+          return Promise.reject(new ApiRequestError("Unauthorized", 401));
+        }
       }
       const message = (result && "message" in result && result.message) || `Yêu cầu thất bại (HTTP ${response.status})`;
       throw new ApiRequestError(message, response.status);
@@ -96,14 +95,19 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     if (method === "GET" && !options.skipCache && cacheable) {
       await writeCache(scopedKey, result.data);
     }
-    // Re-check after response parsing and cache I/O, both of which may yield while
-    // another login/logout changes the active account.
+    
     if (options.auth !== false && (await session.getToken()) !== token) {
       throw new ApiRequestError("Phiên đăng nhập đã thay đổi. Vui lòng tải lại dữ liệu.", 409);
     }
     return result.data;
   } catch (error) {
-    if (error instanceof ApiRequestError) throw error;
+    if (error instanceof ApiRequestError) {
+      // Nếu là lỗi 401 do vừa đăng xuất, chặn đứng việc throw lỗi làm crash màn hình
+      if (error.status === 401) {
+        return Promise.reject(error);
+      }
+      throw error;
+    }
     if (options.auth !== false && (await session.getToken()) !== token) {
       throw new ApiRequestError("Phiên đăng nhập đã thay đổi. Vui lòng tải lại dữ liệu.", 409);
     }
@@ -132,7 +136,6 @@ export async function queueMutation(input: {
   return enqueueMutation(input);
 }
 
-// Scope offline data to the authenticated session so account switches cannot reuse another user's cache.
 async function cacheScope(token: string | null): Promise<string> {
   if (!token) return "anonymous";
   let hash = 2166136261;

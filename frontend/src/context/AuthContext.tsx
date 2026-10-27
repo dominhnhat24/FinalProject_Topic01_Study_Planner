@@ -5,6 +5,7 @@ import { apiRequest, ApiRequestError, NetworkError, setUnauthorizedHandler } fro
 import { session } from "../services/session";
 import { cancelAssignmentRemindersForUser } from "../services/notifications";
 import type { AuthResponse } from "../types/api";
+import { router } from "expo-router";
 
 type LoginInput = { email: string; password: string; remember?: boolean };
 type RegisterInput = LoginInput & { name: string };
@@ -24,7 +25,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Invalidates stale async auth operations when logout/account switching occurs.
   const authOperation = useRef(0);
 
   const refreshUser = useCallback(async () => {
@@ -43,7 +43,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const userData = await apiRequest<User>("/auth/me", { skipCache: true });
         const currentToken = await session.getToken();
         if (operation !== authOperation.current || currentToken !== token) return;
-        // Refresh the local profile snapshot only after the server validates the session.
         await session.saveUserSnapshot(userData, token);
         if (operation !== authOperation.current || (await session.getToken()) !== token) return;
         setUser(userData);
@@ -56,11 +55,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           await session.clearToken();
           setUser(null);
           setAuthenticated(false);
+          router.replace("/login");
           return;
         }
 
-        // Permit offline app shell/cache use for the same local session, but never
-        // switch identity based on an old request or a snapshot from another token.
         if (error instanceof NetworkError) {
           const snapshot = await session.getUserSnapshot();
           if (operation !== authOperation.current || (await session.getToken()) !== token) return;
@@ -84,6 +82,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(null);
       setAuthenticated(false);
       setLoading(false);
+      // Tự động chuyển hướng về trang login ngay khi gặp lỗi 401 / Unauthorized
+      try {
+        router.replace("/login");
+      } catch {
+        // Bỏ qua lỗi điều hướng nếu router chưa sẵn sàng
+      }
     });
     void refreshUser();
     return () => setUnauthorizedHandler(null);
@@ -157,23 +161,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setLoading(true);
     try {
       currentToken = await session.getToken();
-      await apiRequest("/auth/logout", { method: "POST", tokenOverride: currentToken, skipCache: true });
+      await apiRequest("/auth/logout", { method: "POST", tokenOverride: currentToken, skipCache: true }).catch(() => {});
       serverSessionClosed = currentToken !== null;
-    } catch (error) {
-      // A 401 means the server already refuses this token. Network/5xx failures
-      // mean remote revocation could not be confirmed, though local logout proceeds.
-      serverSessionClosed = currentToken !== null && error instanceof ApiRequestError && error.status === 401;
+    } catch {
+      serverSessionClosed = false;
     } finally {
       try {
-        // Only clear the session this logout started with. A concurrent login may
-        // already have installed another token while the network request was pending.
         if (currentToken) await session.clearTokenIfCurrent(currentToken);
       } finally {
-        if (currentUser) await cancelAssignmentRemindersForUser(currentUser.id);
+        if (currentUser) await cancelAssignmentRemindersForUser(currentUser.id).catch(() => {});
         if (operation === authOperation.current) {
           setUser(null);
           setAuthenticated(false);
           setLoading(false);
+        }
+        try {
+          router.replace("/login");
+        } catch {
+          // Bỏ qua lỗi router
         }
       }
     }

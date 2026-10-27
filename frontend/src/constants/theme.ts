@@ -1,57 +1,55 @@
-export const LIGHT_COLORS = {
-  primary: "#0084FF",
-  secondary: "#44A8FF",
-  success: "#10B981",
-  warning: "#F59E0B",
-  error: "#EF4444",
-  bg: "#F7FAFD",
-  surface: "#FFFFFF",
-  text: "#0F172A",
-  muted: "#64748B",
-  line: "#D9EAF7",
-  neutral100: "#EEF7FF",
-  neutral300: "#C9E3F7",
-  neutral700: "#35516A",
-  neutral900: "#0F172A",
-  softBlue: "#E7F3FF",
-  white: "#FFFFFF",
-} as const;
+// frontend/src/constants/theme.ts
+export const COLORS = {
+  primary: '#6C5CE7',      // Tím Indigo chủ đạo (sang trọng, hiện đại)
+  primaryLight: '#A29BFE', // Tím nhạt cho badge, hiệu ứng
+  secondary: '#00CEC9',    // Xanh ngọc điểm nhấn
+  accent: '#FF7675',       // Cam hồng cho Cảnh báo / Quá hạn
+  success: '#00B894',      // Xanh mint cho Hoàn thành
+  warning: '#FDCB6E',      // Vàng pastel cho Đang xử lý
+  
+  // Backgrounds
+  background: '#F8F9FA',
+  card: '#FFFFFF',
+  darkBackground: '#0F172A',
+  darkCard: '#1E293B',
 
-export const DARK_COLORS = {
-  primary: "#4DA3FF",
-  secondary: "#79B9FF",
-  success: "#34D399",
-  warning: "#FBBF24",
-  error: "#F87171",
-  bg: "#09131F",
-  surface: "#102033",
-  text: "#F8FAFC",
-  muted: "#9DB2C5",
-  line: "#27425C",
-  neutral100: "#12283E",
-  neutral300: "#3E5C77",
-  neutral700: "#C7D9EA",
-  neutral900: "#F8FAFC",
-  softBlue: "#143554",
-  white: "#FFFFFF",
-} as const;
+  // Text
+  textPrimary: '#2D3436',
+  textSecondary: '#636E72',
+  textMuted: '#B2BEC3',
+  white: '#FFFFFF',
+  
+  border: '#EDF2F7',
+};
 
-export type AppColors = typeof LIGHT_COLORS;
-
-export const RADIUS = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 24,
-  pill: 999,
-} as const;
+export const SHADOWS = {
+  soft: {
+    shadowColor: '#6C5CE7',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  }
+};
 
 export const SPACING = {
   xs: 4,
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
-  xxxl: 32,
-} as const;
+  md: 16,
+  lg: 24,
+  xl: 32,
+};
+
+export const RADIUS = {
+  sm: 8,
+  md: 14,
+  lg: 20,
+  full: 999,
+};

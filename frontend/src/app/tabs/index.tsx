@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { apiRequest } from "../../services/api";
@@ -12,6 +12,7 @@ import { dueLabel } from "../../utils/date";
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth() as { user: { name?: string; timezone?: string } | null };
+  const pathname = usePathname();
   const [assignments, setAssignments] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [progress, setProgress] = useState<any[]>([]);
@@ -40,7 +41,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     void load().finally(() => setLoading(false));
-  }, [load]);
+  }, [load, pathname]);
 
   const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
   
@@ -89,7 +90,6 @@ export default function HomeScreen() {
 
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
 
-      {/* Tiến độ học tập dạng vòng tròn bắt mắt */}
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         <View style={styles.progressRow}>
           <View style={styles.flex}>
@@ -118,7 +118,9 @@ export default function HomeScreen() {
             >
               <View style={styles.flex}>
                 <Text style={[styles.assignmentTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
-                <Text style={[styles.assignmentMeta, { color: colors.muted }]}>{course?.name ?? "Học phần"} • {dueLabel(item.dueAt, user?.timezone ?? "Asia/Ho_Chi_Minh")}</Text>
+                <Text style={[styles.assignmentMeta, { color: colors.muted }]}>
+                  {course?.name ?? "Học phần"} · {dueLabel(item.dueAt, user?.timezone ?? "Asia/Ho_Chi_Minh")}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </Pressable>

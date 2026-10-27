@@ -1,8 +1,10 @@
+// frontend/src/app/tabs/assignments.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { AssignmentFormModal } from "../../components/AssignmentFormModal";
+import { AssignmentCard } from "../../components/AssignmentCard";
 import { EmptyState } from "../../components/EmptyState";
 import { useTheme } from "../../context/ThemeContext";
 import { apiRequest, NetworkError, queueMutation, scopedCacheKey } from "../../services/api";
@@ -13,12 +15,16 @@ import type { Assignment, Course } from "../../types/api";
 type StatusFilter = "all" | "pending" | "completed";
 
 function formatDue(value: string) {
-  return new Date(value).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  try {
+    return new Date(value).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return value;
+  }
 }
 
 export default function AssignmentsScreen() {
   const { colors } = useTheme();
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const { edit, filter } = useLocalSearchParams<{ edit?: string; filter?: string }>();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -37,8 +43,8 @@ export default function AssignmentsScreen() {
         apiRequest<{ items: Assignment[] }>("/assignments?limit=100&page=1"),
         apiRequest<Course[]>("/courses"),
       ]);
-      setAssignments(assignmentData.items);
-      setCourses(courseData);
+      setAssignments(assignmentData.items || []);
+      setCourses(courseData || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải bài tập.");
       throw err;
@@ -49,23 +55,53 @@ export default function AssignmentsScreen() {
     void load().finally(() => setLoading(false));
   }, [load]);
 
+  // Theo dõi tham số edit để mở modal
   useEffect(() => {
     if (edit && assignments.length) {
       const target = assignments.find((item) => item.id === edit);
-      if (target) { setEditing(target); setModal(true); }
+      if (target) { 
+        setEditing(target); 
+        setModal(true); 
+      }
+    } else if (!edit) {
+      setModal(false);
+      setEditing(null);
     }
   }, [edit, assignments]);
 
   const courseMap = useMemo(() => new Map(courses.map((course) => [course.id, course])), [courses]);
-  const filtered = useMemo(
-    () => assignments.filter((item) => {
+  
+  // Logic lọc và sắp xếp bài tập (Bài sắp hết hạn lên đầu)
+  const filtered = useMemo(() => {
+    const result = assignments.filter((item) => {
+      if (filter === "48h") {
+        if (!item.dueAt) return false;
+        
+        const now = Date.now();
+        const targetTime = now + 48 * 60 * 60 * 1000;
+        
+        let dueTime = new Date(item.dueAt).getTime();
+        if (isNaN(dueTime)) {
+          dueTime = new Date(item.dueAt.replace(" ", "T")).getTime();
+        }
+
+        if (isNaN(dueTime)) return false;
+        if (dueTime < now || dueTime > targetTime) return false;
+      }
+
       const matchesStatus = status === "all" || item.status === status;
       const matchesCourse = courseId === "all" || item.courseId === courseId;
       const matchesSearch = !search.trim() || item.title.toLowerCase().includes(search.trim().toLowerCase());
+
       return matchesStatus && matchesCourse && matchesSearch;
-    }),
-    [assignments, status, courseId, search],
-  );
+    });
+
+    return result.sort((a, b) => {
+      const timeA = a.dueAt ? new Date(a.dueAt).getTime() : 0;
+      const timeB = b.dueAt ? new Date(b.dueAt).getTime() : 0;
+      return timeA - timeB;
+    });
+  }, [assignments, status, courseId, search, filter]);
 
   const saveLocal = (next: Assignment) => {
     setAssignments((current) => {
@@ -82,12 +118,13 @@ export default function AssignmentsScreen() {
 
   const toggleStatus = async (item: Assignment) => {
     const previous = item;
-    const next: Assignment = { ...item, status: item.status === "completed" ? "pending" : "completed" };
+    const nextStatus = item.status === "completed" ? "pending" : "completed";
+    const next: Assignment = { ...item, status: nextStatus };
     saveLocal(next);
     try {
       const updated = await apiRequest<Assignment>(`/assignments/${item.id}`, {
         method: "PATCH",
-        body: { status: next.status },
+        body: { status: nextStatus },
       });
       saveLocal(updated);
       await scheduleAssignmentReminders(updated);
@@ -96,7 +133,7 @@ export default function AssignmentsScreen() {
         await queueMutation({
           method: "PATCH",
           path: `/assignments/${item.id}`,
-          body: { status: next.status },
+          body: { status: nextStatus },
           resource: "assignment",
           localId: item.id,
         });
@@ -118,76 +155,168 @@ export default function AssignmentsScreen() {
 
   return (
     <>
-      <ScrollView
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
         style={[styles.screen, { backgroundColor: colors.bg }]}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} tintColor={colors.primary} />}
-      >
-        <View style={styles.head}>
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} 
+            tintColor={colors.primary} 
+          />
+        }
+        ListHeaderComponent={
           <View>
-            <Text style={[styles.title, { color: colors.text }]}>Bài tập</Text>
-            <Text style={[styles.muted, { color: colors.muted }]}>Danh sách dữ liệu thật từ remote API.</Text>
+            <View style={styles.head}>
+              <View>
+                <Text style={[styles.title, { color: colors.text }]}>
+                  {filter === "48h" ? "Bài tập 48 giờ tới" : "Quản lý Bài tập"}
+                </Text>
+                <Text style={[styles.muted, { color: colors.muted }]}>
+                  {filter === "48h" ? "Đang lọc các bài sắp đến hạn." : "Danh sách đồng bộ thời gian thực."}
+                </Text>
+              </View>
+              <View style={styles.headerRightActions}>
+                {filter === "48h" && (
+                  <Pressable
+                    onPress={() => router.setParams({ filter: undefined })}
+                    style={[styles.clearFilterBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                  >
+                    <Text style={[styles.clearFilterText, { color: colors.primary }]}>Xem tất cả</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => {
+                    setEditing(null);
+                    setModal(true);
+                  }}
+                  hitSlop={8}
+                >
+                  <Ionicons name="add-circle" size={38} color={colors.primary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={[styles.search, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+              <Ionicons name="search-outline" size={18} color={colors.muted} />
+              <TextInput 
+                value={search} 
+                onChangeText={setSearch} 
+                placeholder="Tìm kiếm bài tập..." 
+                placeholderTextColor={colors.muted} 
+                style={[styles.input, { color: colors.text }]} 
+              />
+            </View>
+
+            <View style={styles.segment}>
+              {([["all", "Tất cả"], ["pending", "Chưa xong"], ["completed", "Đã xong"]] as const).map(([value, label]) => (
+                <Pressable 
+                  key={value} 
+                  onPress={() => setStatus(value)} 
+                  style={[
+                    styles.segmentItem, 
+                    { borderColor: colors.border, backgroundColor: colors.card }, 
+                    status === value && { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ]}
+                >
+                  <Text style={[styles.segmentText, { color: status === value ? "#FFF" : colors.muted }]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                {[{ id: "all", label: "Tất cả môn" }, ...courses.map((course) => ({ id: course.id, label: course.code }))].map((item) => (
+                  <Pressable 
+                    key={item.id} 
+                    onPress={() => setCourseId(item.id)} 
+                    style={[
+                      styles.chip, 
+                      { borderColor: colors.border, backgroundColor: colors.card }, 
+                      courseId === item.id && { backgroundColor: `${colors.primary}15`, borderColor: colors.primary }
+                    ]}
+                  >
+                    <Text style={[styles.chipText, { color: courseId === item.id ? colors.primary : colors.muted }]}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+          {error ? <Text style={[styles.error, { color: '#D63031' }]}>{error}</Text> : null}
+            
+            <View style={styles.listHead}>
+              <Text style={[styles.section, { color: colors.text }]}>Danh sách</Text>
+              <Text style={[styles.count, { color: colors.muted }]}>{filtered.length} mục</Text>
+            </View>
           </View>
-          <Pressable
-            onPress={() => {
-              setEditing(null);
-              setModal(true);
-            }}
-            hitSlop={8}
-          >
-            <Ionicons name="add-circle" size={34} color={colors.primary} />
-          </Pressable>
-        </View>
-
-        <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.line }]}> 
-          <Ionicons name="search-outline" size={17} color={colors.muted} />
-          <TextInput value={search} onChangeText={setSearch} placeholder="Tìm bài tập..." placeholderTextColor={colors.muted} style={[styles.input, { color: colors.text }]} />
-        </View>
-
-        <View style={styles.segment}>
-          {([["all", "Tất cả"], ["pending", "Chưa hoàn thành"], ["completed", "Đã hoàn thành"]] as const).map(([value, label]) => (
-            <Pressable key={value} onPress={() => setStatus(value)} style={[styles.segmentItem, { borderColor: colors.line, backgroundColor: colors.surface }, status === value && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-              <Text style={[styles.segmentText, { color: status === value ? "#FFF" : colors.muted }]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {[{ id: "all", label: "Tất cả môn học" }, ...courses.map((course) => ({ id: course.id, label: course.code }))].map((item) => (
-            <Pressable key={item.id} onPress={() => setCourseId(item.id)} style={[styles.chip, { borderColor: colors.line, backgroundColor: colors.surface }, courseId === item.id && { backgroundColor: `${colors.primary}12`, borderColor: colors.primary }]}>
-              <Text style={[styles.chipText, { color: courseId === item.id ? colors.primary : colors.muted }]}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
-        <View style={styles.listHead}><Text style={[styles.section, { color: colors.text }]}>Danh sách bài tập</Text><Text style={[styles.count, { color: colors.muted }]}>{filtered.length} mục</Text></View>
-
-        {filtered.map((item) => {
+        }
+        renderItem={({ item }) => {
           const course = courseMap.get(item.courseId);
           const done = item.status === "completed";
           return (
-            <Pressable key={item.id} onPress={() => router.push(`/assignments/${item.id}`)} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.line }]}> 
-              <View style={[styles.dot, { backgroundColor: done ? `${colors.success}16` : colors.softBlue }]}><Text style={styles.emoji}>📘</Text></View>
-              <View style={styles.info}>
-                <Text style={[styles.taskTitle, { color: colors.text }]}>{item.title}</Text>
-                <Text style={[styles.meta, { color: colors.muted }]}>{course?.code ?? ""} · Hạn {formatDue(item.dueAt)}</Text>
-                <Text style={[styles.status, { color: done ? colors.success : colors.error }]}>{done ? "Đã hoàn thành" : "Chưa hoàn thành"}</Text>
-              </View>
-              <Pressable onPress={() => void toggleStatus(item)} hitSlop={8}>
-                <Ionicons name={done ? "checkbox" : "square-outline"} size={21} color={done ? colors.success : colors.muted} />
-              </Pressable>
-            </Pressable>
+            <AssignmentCard
+              title={item.title}
+              courseName={course?.name || course?.code || 'Môn học'}
+              courseColor={course ? '#6C5CE7' : '#00CEC9'}
+              dueDate={formatDue(item.dueAt)}
+              priority="MEDIUM"
+              isCompleted={done}
+              onToggle={() => void toggleStatus(item)}
+              onPress={() => router.push(`/assignments/${item.id}`)}
+            />
           );
-        })}
-
-        {filtered.length === 0 ? <EmptyState title="Không có bài tập" message={assignments.length ? "Thử đổi bộ lọc hoặc từ khóa." : "Tạo bài tập đầu tiên bằng nút +."} /> : null}
-      </ScrollView>
-      <AssignmentFormModal visible={modal} onClose={() => setModal(false)} courses={courses} editing={editing} onSaved={saveLocal} />
+        }}
+        ListEmptyComponent={
+          <EmptyState 
+            title="Không có bài tập nào" 
+            message={filter === "48h" ? "Không có bài tập nào trong vòng 48 giờ tới." : (assignments.length ? "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." : "Tạo bài tập đầu tiên bằng cách nhấn nút dấu cộng (+).")} 
+          />
+        }
+      />
+      
+      {/* Ép đóng trực tiếp bằng state cục bộ */}
+      <AssignmentFormModal 
+        visible={modal} 
+        onClose={() => {
+          setModal(false);
+          setEditing(null);
+          router.replace({ pathname: "/tabs/assignments", params: filter ? { filter } : {} });
+        }} 
+        courses={courses} 
+        editing={editing} 
+        onSaved={(updatedItem) => {
+          saveLocal(updatedItem);
+          setModal(false);
+          setEditing(null);
+          router.replace({ pathname: "/tabs/assignments", params: filter ? { filter } : {} });
+        }} 
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 }, content: { padding: 20, paddingBottom: 30 }, center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 }, muted: { fontSize: 11, marginTop: 4 }, head: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { fontSize: 25, fontWeight: "800" }, add: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" }, search: { height: 46, borderWidth: 1, borderRadius: 12, marginTop: 18, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", gap: 8 }, input: { flex: 1, fontSize: 11 }, segment: { flexDirection: "row", gap: 7, marginTop: 12 }, segmentItem: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center" }, segmentText: { fontSize: 9, fontWeight: "700" }, filterRow: { gap: 8, paddingVertical: 12 }, chip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9 }, chipText: { fontSize: 9, fontWeight: "700" }, error: { fontSize: 10, marginTop: 2 }, listHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, marginBottom: 10 }, section: { fontSize: 15, fontWeight: "800" }, count: { fontSize: 10 }, card: { borderWidth: 1, borderRadius: 14, padding: 13, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 9 }, dot: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center" }, emoji: { fontSize: 17 }, info: { flex: 1 }, taskTitle: { fontSize: 12, fontWeight: "700" }, meta: { fontSize: 10, marginTop: 4 }, status: { fontSize: 9, fontWeight: "800", marginTop: 5 },
+  screen: { flex: 1 },
+  content: { padding: 16, paddingBottom: 40 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
+  muted: { fontSize: 12, marginTop: 4 },
+  head: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
+  headerRightActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  clearFilterBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  clearFilterText: { fontSize: 11, fontWeight: "700" },
+  title: { fontSize: 24, fontWeight: "800" },
+  search: { height: 48, borderWidth: 1, borderRadius: 12, marginTop: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8 },
+  input: { flex: 1, fontSize: 14 },
+  segment: { flexDirection: "row", gap: 8, marginTop: 14 },
+  segmentItem: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center" },
+  segmentText: { fontSize: 11, fontWeight: "700" },
+  filterRow: { gap: 8, paddingVertical: 12 },
+  chip: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  chipText: { fontSize: 11, fontWeight: "700" },
+  error: { fontSize: 12, marginTop: 4 },
+  listHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12, marginBottom: 8 },
+  section: { fontSize: 16, fontWeight: "800" },
+  count: { fontSize: 12 },
 });
