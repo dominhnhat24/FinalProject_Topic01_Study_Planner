@@ -1,3 +1,4 @@
+// frontend/src/app/login.tsx
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Link, router } from "expo-router";
@@ -19,15 +20,28 @@ export default function LoginScreen() {
     setError("");
     if (!email.trim() || !password) return setError("Vui lòng nhập email và mật khẩu.");
     setSubmitting(true);
-    try { await login({ email: email.trim(), password, remember }); router.replace("/tabs"); }
-    catch (err) { setError(err instanceof Error ? err.message : "Đăng nhập thất bại."); }
-    finally { setSubmitting(false); }
+    try { 
+      await login({ email: email.trim(), password, remember }); 
+      router.replace("/tabs"); 
+    } catch (err) { 
+      setError(err instanceof Error ? err.message : "Đăng nhập thất bại."); 
+    } finally { 
+      setSubmitting(false); 
+    }
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/tabs");
+    }
   };
 
   return (
     <KeyboardAvoidingView style={[styles.screen, { backgroundColor: colors.bg }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} style={styles.back}>
+        <Pressable onPress={handleBack} style={styles.back}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
 
@@ -40,12 +54,28 @@ export default function LoginScreen() {
 
         <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <Ionicons name="mail-outline" size={18} color={colors.muted} />
-          <TextInput value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor={colors.muted} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} style={[styles.input, { color: colors.text }]} />
+          <TextInput 
+            value={email} 
+            onChangeText={setEmail} 
+            placeholder="Email" 
+            placeholderTextColor={colors.muted} 
+            keyboardType="email-address" 
+            autoCapitalize="none" 
+            autoCorrect={false} 
+            style={[styles.input, { color: colors.text }]} 
+          />
         </View>
 
         <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <Ionicons name="lock-closed-outline" size={18} color={colors.muted} />
-          <TextInput value={password} onChangeText={setPassword} placeholder="Mật khẩu" placeholderTextColor={colors.muted} secureTextEntry={!showPassword} style={[styles.input, { color: colors.text }]} />
+          <TextInput 
+            value={password} 
+            onChangeText={setPassword} 
+            placeholder="Mật khẩu" 
+            placeholderTextColor={colors.muted} 
+            secureTextEntry={!showPassword} 
+            style={[styles.input, { color: colors.text }]} 
+          />
           <Pressable onPress={() => setShowPassword((value) => !value)}>
             <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} color={colors.muted} />
           </Pressable>
@@ -56,12 +86,15 @@ export default function LoginScreen() {
             <Ionicons name={remember ? "checkbox" : "square-outline"} size={19} color={remember ? colors.primary : colors.muted} />
             <Text style={[styles.rememberText, { color: colors.muted }]}>Ghi nhớ đăng nhập</Text>
           </Pressable>
-          <Text style={[styles.forgot, { color: colors.primary }]}>Quên mật khẩu?</Text>
+          
+          <Pressable onPress={() => router.push("/forgot-password")} hitSlop={8}>
+            <Text style={[styles.forgot, { color: colors.primary }]}>Quên mật khẩu?</Text>
+          </Pressable>
         </View>
 
         {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
 
-        <Pressable disabled={submitting} onPress={() => void submit()} style={[styles.primary, { backgroundColor: colors.primary }, submitting && { opacity: .7 }]}>
+        <Pressable disabled={submitting} onPress={() => void submit()} style={[styles.primary, { backgroundColor: colors.primary }, submitting && { opacity: 0.7 }]}>
           {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryText}>Đăng nhập</Text>}
         </Pressable>
 
